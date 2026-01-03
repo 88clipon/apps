@@ -1,5 +1,0 @@
-fragment AttributeWithMappingFragment on Attribute {
-    id
-    name
-    slug
-}

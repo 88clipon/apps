@@ -1,1 +1,0 @@
-export const DEFAULT_TAX_CLASS_ID = "P0000000";

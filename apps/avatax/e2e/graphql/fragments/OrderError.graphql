@@ -1,9 +1,0 @@
-fragment OrderError on OrderError {
-  field
-  message
-  code
-  variants
-  orderLines
-  addressType
-  warehouse
-}

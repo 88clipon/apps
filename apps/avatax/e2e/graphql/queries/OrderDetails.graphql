@@ -1,9 +1,0 @@
-query OrderDetails($id: ID!) {
-  order(id: $id) {
-    ...OrderDetailsFragment
-    metadata {
-      key
-      value
-    }
-  }
-}
