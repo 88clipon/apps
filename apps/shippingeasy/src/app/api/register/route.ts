@@ -1,4 +1,5 @@
 import { createAppRegisterHandler } from "@saleor/app-sdk/handlers/next-app-router";
+import { captureException } from "@sentry/nextjs";
 
 import { env } from "@/lib/env";
 import { createLogger } from "@/lib/logger";
@@ -6,6 +7,20 @@ import { withLoggerContext } from "@/lib/logger-context";
 import { saleorApp } from "@/lib/saleor-app";
 
 const logger = createLogger("registerHandler");
+
+const serializeAplError = (err: unknown) => {
+  if (err instanceof Error) {
+    const e = err as Error & { name?: string; $metadata?: { httpStatusCode?: number } };
+
+    return {
+      name: e.name,
+      message: e.message,
+      httpStatusCode: e.$metadata?.httpStatusCode,
+    };
+  }
+
+  return { message: String(err) };
+};
 
 const allowedUrlsPattern = env.ALLOWED_DOMAIN_PATTERN;
 
@@ -23,9 +38,17 @@ const handler = createAppRegisterHandler({
     },
   ],
   onAplSetFailed: async (_req, context) => {
-    logger.error("Failed to set APL", {
+    const details = serializeAplError(context.error);
+
+    logger.error("Failed to set APL (DynamoDB PutItem / APL.set)", {
       saleorApiUrl: context.authData.saleorApiUrl,
-      error: context.error,
+      dynamoTable: env.DYNAMODB_MAIN_TABLE_NAME ?? "(fallback shippingeasy-app-main)",
+      awsRegion: env.AWS_REGION ?? "(default chain)",
+      ...details,
+    });
+    captureException(context.error, {
+      tags: { saleorApiUrl: context.authData.saleorApiUrl },
+      extra: { dynamoTable: env.DYNAMODB_MAIN_TABLE_NAME, ...details },
     });
   },
   onAuthAplSaved: async (_req, context) => {

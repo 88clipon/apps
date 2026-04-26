@@ -6,5 +6,10 @@ export const createDynamoDBClient = () => {
 };
 
 export const createDynamoDBDocumentClient = (client: DynamoDBClient) => {
-  return DynamoDBDocumentClient.from(client);
+  return DynamoDBDocumentClient.from(client, {
+    marshallOptions: {
+      /** Avoid PutItem failures when optional APL fields (e.g. jwks) are undefined. */
+      removeUndefinedValues: true,
+    },
+  });
 };
