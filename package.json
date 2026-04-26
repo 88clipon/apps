@@ -21,6 +21,7 @@
     "lint:packages:fix": "sherif --fix",
     "prepare": "husky",
     "start": "turbo run start",
+    "start:shippingeasy": "pnpm --dir apps/shippingeasy run start",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci"
   },

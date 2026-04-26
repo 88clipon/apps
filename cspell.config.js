@@ -55,6 +55,8 @@ export default {
     "opentelemetry",
     "pactum",
     "parentbased",
+    "railpack",
+    "RAILPACK",
     "pryce",
     "quickstart",
     "saleor",

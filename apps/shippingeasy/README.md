@@ -34,6 +34,16 @@ When a config is set to `emailsHandledBy: "shippingeasy"`:
 
 Flip it to `saleor` to keep Saleor's native notifications and disable ShippingEasy's.
 
+## Deploying on Railway (or similar)
+
+Use the **monorepo root** as the service root (the directory that contains `pnpm-workspace.yaml`), not `apps/shippingeasy` alone.
+
+- **Start command**: `pnpm run start:shippingeasy`  
+  Do **not** use the repo default `pnpm start` for this service: that runs `turbo run start` and launches every Saleor app that defines `start` at once, all competing for the same `PORT`, so the process exits and the service never stays online.
+- **Config-as-code**: point the service at `apps/shippingeasy/railway.toml` (see comments in that file) so the start command stays correct across deploys.
+- **Build** (example): `pnpm --filter saleor-app-shippingeasy build` or your Railpack `RAILPACK_BUILD_CMD` equivalent.
+- Set `PORT` as provided by the platform; the `start` script binds Next.js to `PORT`.
+
 ## Local development
 
 ### Prerequisites
