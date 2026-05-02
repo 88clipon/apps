@@ -28,7 +28,7 @@ const handler = createManifestHandler({
       homepageUrl: "https://shippingeasy.com/",
       id: env.MANIFEST_APP_ID,
       name: env.APP_NAME,
-      permissions: ["MANAGE_ORDERS", "MANAGE_CHECKOUTS", "HANDLE_CHECKOUTS"],
+      permissions: ["MANAGE_ORDERS", "MANAGE_CHECKOUTS", "HANDLE_CHECKOUTS", "MANAGE_SHIPPING"],
       requiredSaleorVersion: ">=3.21 <4",
       supportUrl: "https://shippingeasy.com/support/",
       tokenTargetUrl: `${apiBaseUrl}/api/register`,

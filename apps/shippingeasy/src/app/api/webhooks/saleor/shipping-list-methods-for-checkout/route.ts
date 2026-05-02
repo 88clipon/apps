@@ -79,6 +79,11 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
       return Response.json([], { status: 200 });
     }
 
+    logger.info("Returning shipping methods", {
+      count: result.value.length,
+      methods: result.value.map((m) => m.name),
+    });
+
     return Response.json(result.value, { status: 200 });
   } catch (error) {
     captureException(error);

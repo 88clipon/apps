@@ -173,6 +173,11 @@ export class ListShippingRatesUseCase {
       });
     }
 
+    logger.info("ShippingEasy API returned rates", {
+      count: result.value.rates.length,
+      rawServices: result.value.rates.map((r) => r.service),
+    });
+
     await this.deps.rateCache.set(cacheKey, {
       rates: [...result.value.rates],
       expiresAt: Date.now() + CACHE_TTL_MS,
