@@ -61,9 +61,14 @@ export const shippingEasyConfigSchema = z.object({
   originAddress: originAddressSchema,
   packageDefaults: packageDefaultsSchema,
   enabledCarriers: z.array(shippingEasyCarrierSchema).default(["usps", "ups"]),
+  /** Service-level allowlist for domestic destinations. Empty = all services pass through. */
+  domesticServices: z.array(z.string()).optional().default([]),
+  /** Service-level allowlist for international destinations. Empty = all services pass through. */
+  internationalServices: z.array(z.string()).optional().default([]),
   rateMarkup: rateMarkupSchema,
   emailsHandledBy: emailsHandledBySchema,
 });
+export type ShippingEasyConfigInput = z.input<typeof shippingEasyConfigSchema>;
 export type ShippingEasyConfigFields = z.infer<typeof shippingEasyConfigSchema>;
 
 export const ShippingEasyConfigValidationError = BaseError.subclass(
@@ -86,6 +91,8 @@ export class ShippingEasyConfig {
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
+  readonly domesticServices: readonly string[];
+  readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
 
@@ -99,12 +106,14 @@ export class ShippingEasyConfig {
     this.originAddress = fields.originAddress;
     this.packageDefaults = fields.packageDefaults;
     this.enabledCarriers = fields.enabledCarriers;
+    this.domesticServices = fields.domesticServices;
+    this.internationalServices = fields.internationalServices;
     this.rateMarkup = fields.rateMarkup;
     this.emailsHandledBy = fields.emailsHandledBy;
   }
 
   static create(
-    input: ShippingEasyConfigFields,
+    input: ShippingEasyConfigInput,
   ): Result<ShippingEasyConfig, InstanceType<typeof ShippingEasyConfigValidationError>> {
     const parsed = shippingEasyConfigSchema.safeParse(input);
 
@@ -147,6 +156,8 @@ export type ShippingEasyFrontendConfigFields = {
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
+  readonly domesticServices: readonly string[];
+  readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
 };
@@ -159,6 +170,8 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
+  readonly domesticServices: readonly string[];
+  readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
 
@@ -170,6 +183,8 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
     this.originAddress = fields.originAddress;
     this.packageDefaults = fields.packageDefaults;
     this.enabledCarriers = fields.enabledCarriers;
+    this.domesticServices = fields.domesticServices;
+    this.internationalServices = fields.internationalServices;
     this.rateMarkup = fields.rateMarkup;
     this.emailsHandledBy = fields.emailsHandledBy;
   }
@@ -183,6 +198,8 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
       originAddress: c.originAddress,
       packageDefaults: c.packageDefaults,
       enabledCarriers: c.enabledCarriers,
+      domesticServices: c.domesticServices,
+      internationalServices: c.internationalServices,
       rateMarkup: c.rateMarkup,
       emailsHandledBy: c.emailsHandledBy,
     });

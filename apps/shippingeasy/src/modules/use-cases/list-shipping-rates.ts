@@ -107,7 +107,14 @@ export class ListShippingRatesUseCase {
         weightBucketOz: weightBucket,
       });
 
-      return ok(this.toSaleorShape(cached.rates, config, input.checkoutCurrency));
+      return ok(
+        this.toSaleorShape({
+          rates: cached.rates,
+          config,
+          checkoutCurrency: input.checkoutCurrency,
+          destinationCountry: input.shippingAddress.countryCode,
+        }),
+      );
     }
 
     const client = this.deps.buildClient(config);
@@ -171,16 +178,41 @@ export class ListShippingRatesUseCase {
       expiresAt: Date.now() + CACHE_TTL_MS,
     });
 
-    return ok(this.toSaleorShape(result.value.rates, config, input.checkoutCurrency));
+    return ok(
+      this.toSaleorShape({
+        rates: result.value.rates,
+        config,
+        checkoutCurrency: input.checkoutCurrency,
+        destinationCountry: input.shippingAddress.countryCode,
+      }),
+    );
   }
 
-  private toSaleorShape(
-    rates: readonly import("@/modules/shippingeasy/shippingeasy-schemas").ShippingEasyRate[],
-    config: ShippingEasyConfig,
-    checkoutCurrency: string,
-  ): SaleorShippingMethodResponseItem[] {
+  private toSaleorShape({
+    rates,
+    config,
+    checkoutCurrency,
+    destinationCountry,
+  }: {
+    rates: readonly import("@/modules/shippingeasy/shippingeasy-schemas").ShippingEasyRate[];
+    config: ShippingEasyConfig;
+    checkoutCurrency: string;
+    destinationCountry: string;
+  }): SaleorShippingMethodResponseItem[] {
+    const isDomestic =
+      destinationCountry.toUpperCase() === config.originAddress.country.toUpperCase();
+    const serviceAllowlist = isDomestic
+      ? config.domesticServices
+      : config.internationalServices;
+
     return rates
       .filter((r) => r.currency.toUpperCase() === checkoutCurrency.toUpperCase())
+      .filter((r) => {
+        if (!serviceAllowlist || serviceAllowlist.length === 0) return true;
+        const svc = r.service.toLowerCase();
+
+        return serviceAllowlist.some((allowed) => svc === allowed.toLowerCase());
+      })
       .map((r) => ({
         id: `${r.carrier}-${r.service}`,
         name: r.service_description ?? `${r.carrier.toUpperCase()} ${r.service}`,

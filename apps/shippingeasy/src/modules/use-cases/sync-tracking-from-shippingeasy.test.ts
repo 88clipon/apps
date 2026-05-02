@@ -9,7 +9,20 @@ import { SyncTrackingFromShippingEasyUseCase } from "./sync-tracking-from-shippi
 
 const saleorApiUrl = createSaleorApiUrl("https://example.saleor.cloud/graphql/")._unsafeUnwrap();
 
-const baseOrder = {
+type TestOrder = {
+  id: string;
+  fulfillments: Array<{ id: string; status: string }>;
+  lines: Array<{
+    id: string;
+    quantity: number;
+    quantityFulfilled: number;
+    variant: {
+      stocks: Array<{ warehouse: { id: string } }>;
+    };
+  }>;
+};
+
+const baseOrder: TestOrder = {
   id: "T3JkZXI6MQ==",
   fulfillments: [],
   lines: [
@@ -35,7 +48,7 @@ const buildEvent = (overrides: Partial<ShippingEasyWebhookEvent> = {}): Shipping
 });
 
 const buildGateway = () => ({
-  fetchOrderForFulfillment: vi.fn(async () => ok(baseOrder)),
+  fetchOrderForFulfillment: vi.fn(async () => ok<TestOrder | null, never>(baseOrder)),
   fulfillOrder: vi.fn(async () => ok({ fulfillmentId: "Ful:1" })),
   updateFulfillmentTracking: vi.fn(async () => ok({ fulfillmentId: "Ful:1" })),
   writePrivateMetadata: vi.fn(async () => ok(undefined)),
@@ -102,7 +115,7 @@ describe("SyncTrackingFromShippingEasyUseCase", () => {
     const gw = buildGateway();
 
     gw.fetchOrderForFulfillment.mockResolvedValueOnce(
-      ok({
+      ok<TestOrder | null, never>({
         ...baseOrder,
         fulfillments: [{ id: "Ful:existing", status: "fulfilled" }],
       }),
@@ -136,7 +149,7 @@ describe("SyncTrackingFromShippingEasyUseCase", () => {
   it("returns OrderNotFound when Saleor cannot locate the order", async () => {
     const gw = buildGateway();
 
-    gw.fetchOrderForFulfillment.mockResolvedValueOnce(ok(null));
+    gw.fetchOrderForFulfillment.mockResolvedValueOnce(ok<TestOrder | null, never>(null));
     const useCase = new SyncTrackingFromShippingEasyUseCase({
       configRepo: buildConfigRepo(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

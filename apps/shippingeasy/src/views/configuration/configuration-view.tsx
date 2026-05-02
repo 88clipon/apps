@@ -1,4 +1,5 @@
 import { Box, Button, Input, Select, Text } from "@saleor/macaw-ui";
+import { TRPCClientError } from "@trpc/client";
 import { useMemo, useState } from "react";
 
 import { trpcClient } from "@/modules/trpc/trpc-client";
@@ -27,9 +28,17 @@ const emptyConfig = {
   },
   packageDefaults: { weightOunces: 8 },
   enabledCarriers: ["usps", "ups"] as ("usps" | "ups" | "fedex" | "dhl" | "dhl_ecommerce")[],
+  domesticServicesRaw: "PriorityExpress",
+  internationalServicesRaw: "PriorityMailInternational,First",
   rateMarkup: { type: "none" as const, value: 0 },
   emailsHandledBy: "shippingeasy" as "shippingeasy" | "saleor",
 };
+
+const parseServiceList = (raw: string): string[] =>
+  raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
 export const ConfigurationView = () => {
   const configsQuery = trpcClient.config.getAll.useQuery();
@@ -47,11 +56,39 @@ export const ConfigurationView = () => {
 
   const handleSave = async () => {
     setNotice(null);
+    const storeId = form.storeId.trim();
+
+    if (!storeId) {
+      setNotice(
+        "Store ID is required. In ShippingEasy, open Settings → Stores & Orders (or API credentials) and copy the numeric Store ID.",
+      );
+
+      return;
+    }
+
     try {
-      await saveMutation.mutateAsync(form);
+      const { domesticServicesRaw, internationalServicesRaw, ...rest } = form;
+
+      await saveMutation.mutateAsync({
+        ...rest,
+        storeId,
+        domesticServices: parseServiceList(domesticServicesRaw),
+        internationalServices: parseServiceList(internationalServicesRaw),
+      });
       setNotice("Configuration saved.");
       setForm(emptyConfig);
     } catch (e) {
+      if (e instanceof TRPCClientError) {
+        const zod = e.data?.zodError as { fieldErrors?: Record<string, string[]> } | undefined;
+        const first =
+          zod?.fieldErrors &&
+          Object.entries(zod.fieldErrors).find(([, msgs]) => msgs && msgs.length > 0);
+        const detail = first ? `${first[0]}: ${first[1].join("; ")}` : e.message;
+
+        setNotice(`Save failed: ${detail}`);
+
+        return;
+      }
       setNotice(`Save failed: ${(e as Error).message}`);
     }
   };
@@ -129,7 +166,7 @@ export const ConfigurationView = () => {
           onChange={(e) => setForm((f) => ({ ...f, apiSecret: e.target.value }))}
         />
         <Input
-          label="Store ID"
+          label="Store ID (numeric, from ShippingEasy)"
           value={form.storeId}
           onChange={(e) => setForm((f) => ({ ...f, storeId: e.target.value }))}
         />
@@ -218,6 +255,25 @@ export const ConfigurationView = () => {
               packageDefaults: { ...f.packageDefaults, weightOunces: Number(e.target.value) },
             }))
           }
+        />
+
+        <Text size={5}>Service filtering</Text>
+        <Text size={2} color="default2">
+          Restrict which carrier services appear at checkout based on destination. Leave blank to
+          show all services. Use ShippingEasy service codes, comma-separated (e.g.
+          PriorityExpress, Priority, First, PriorityMailInternational).
+        </Text>
+        <Input
+          label="Domestic service allowlist"
+          value={form.domesticServicesRaw}
+          onChange={(e) => setForm((f) => ({ ...f, domesticServicesRaw: e.target.value }))}
+          helperText="Services shown when destination country matches origin country"
+        />
+        <Input
+          label="International service allowlist"
+          value={form.internationalServicesRaw}
+          onChange={(e) => setForm((f) => ({ ...f, internationalServicesRaw: e.target.value }))}
+          helperText="Services shown when destination country differs from origin country"
         />
 
         <Text size={5}>Emails</Text>
