@@ -28,6 +28,7 @@ export const saveConfigInputSchema = z.object({
   apiSecret: z.string().min(1),
   storeId: storeIdSchema,
   webhookSecret: z.string().optional(),
+  shippoApiToken: z.string().optional().default(""),
   originAddress: originAddressSchema,
   packageDefaults: packageDefaultsSchema,
   enabledCarriers: z.array(shippingEasyCarrierSchema).min(1),

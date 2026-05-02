@@ -4,7 +4,7 @@ import { createLogger } from "@/lib/logger";
 import { withLoggerContext } from "@/lib/logger-context";
 import { appConfigRepoImpl } from "@/modules/app-config/repositories/app-config-repo-impl";
 import { createSaleorApiUrl } from "@/modules/saleor/saleor-api-url";
-import { buildShippingEasyClient } from "@/modules/use-cases/build-client";
+import { buildShippoClient } from "@/modules/use-cases/build-client";
 import { ListShippingRatesUseCase } from "@/modules/use-cases/list-shipping-rates";
 import { InMemoryRateCache } from "@/modules/use-cases/rate-cache";
 import { computeTotalWeightOunces } from "@/modules/use-cases/weight-calculator";
@@ -22,7 +22,7 @@ const rateCache = new InMemoryRateCache();
 const useCase = new ListShippingRatesUseCase({
   configRepo: appConfigRepoImpl,
   rateCache,
-  buildClient: (config) => buildShippingEasyClient(config, { timeoutMs: 3_000 }),
+  buildShippoClient: (config) => buildShippoClient(config, { timeoutMs: 5_000 }),
 });
 
 const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(async (_req, ctx) => {
@@ -75,12 +75,14 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
 
     if (result.isErr()) {
       logger.warn("ListShippingRates use case returned error", { error: result.error });
-      console.log("[ShippingEasy] Rate error:", JSON.stringify(result.error));
 
       return Response.json([], { status: 200 });
     }
 
-    console.log("[ShippingEasy] Returning methods:", result.value.length, JSON.stringify(result.value));
+    logger.info("Returning shipping methods", {
+      count: result.value.length,
+      methods: result.value.map((m) => m.name),
+    });
 
     return Response.json(result.value, { status: 200 });
   } catch (error) {

@@ -4,7 +4,7 @@ import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dyn
 
 import { createLogger } from "@/lib/logger";
 import { DynamoMainTable } from "@/modules/dynamodb/dynamo-main-table";
-import { ShippingEasyRate } from "@/modules/shippingeasy/shippingeasy-schemas";
+import { ShippoRate } from "@/modules/shippo/shippo-client";
 
 const logger = createLogger("RateCache");
 
@@ -18,7 +18,7 @@ export type RateCacheKey = {
   weightBucketOz: number;
 };
 
-export type CachedRates = { rates: ShippingEasyRate[]; expiresAt: number };
+export type CachedRates = { rates: ShippoRate[]; expiresAt: number };
 
 export interface RateCache {
   get(key: RateCacheKey): Promise<CachedRates | null>;
@@ -92,7 +92,7 @@ export class DynamoRateCache implements RateCache {
       );
 
       if (!result.Item) return null;
-      const entry = result.Item as { rates?: ShippingEasyRate[]; expiresAt?: number };
+      const entry = result.Item as { rates?: ShippoRate[]; expiresAt?: number };
 
       if (!entry.rates || !entry.expiresAt) return null;
       if (entry.expiresAt < Date.now()) return null;

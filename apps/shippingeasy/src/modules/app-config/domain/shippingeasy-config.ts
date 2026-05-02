@@ -58,6 +58,12 @@ export const shippingEasyConfigSchema = z.object({
   storeId: z.string().min(1),
   /** Used to verify inbound webhooks. Defaults to apiSecret if not provided. */
   webhookSecret: z.string().optional(),
+  /**
+   * Shippo API token for real-time rate quotes at checkout.
+   * ShippingEasy's customer API does not provide a rate quotes endpoint;
+   * Shippo (free tier) is used instead. Get a token at https://goshippo.com.
+   */
+  shippoApiToken: z.string().optional().default(""),
   originAddress: originAddressSchema,
   packageDefaults: packageDefaultsSchema,
   enabledCarriers: z.array(shippingEasyCarrierSchema).default(["usps", "ups"]),
@@ -88,6 +94,7 @@ export class ShippingEasyConfig {
   readonly apiSecret: string;
   readonly storeId: string;
   readonly webhookSecret: string;
+  readonly shippoApiToken: string;
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
@@ -103,6 +110,7 @@ export class ShippingEasyConfig {
     this.apiSecret = fields.apiSecret;
     this.storeId = fields.storeId;
     this.webhookSecret = fields.webhookSecret;
+    this.shippoApiToken = fields.shippoApiToken;
     this.originAddress = fields.originAddress;
     this.packageDefaults = fields.packageDefaults;
     this.enabledCarriers = fields.enabledCarriers;
@@ -153,6 +161,7 @@ export type ShippingEasyFrontendConfigFields = {
   readonly name: string;
   readonly apiKeyMasked: string;
   readonly storeId: string;
+  readonly shippoApiTokenMasked: string;
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
@@ -167,6 +176,7 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
   readonly name: string;
   readonly apiKeyMasked: string;
   readonly storeId: string;
+  readonly shippoApiTokenMasked: string;
   readonly originAddress: OriginAddress;
   readonly packageDefaults: PackageDefaults;
   readonly enabledCarriers: readonly ShippingEasyCarrier[];
@@ -180,6 +190,7 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
     this.name = fields.name;
     this.apiKeyMasked = fields.apiKeyMasked;
     this.storeId = fields.storeId;
+    this.shippoApiTokenMasked = fields.shippoApiTokenMasked;
     this.originAddress = fields.originAddress;
     this.packageDefaults = fields.packageDefaults;
     this.enabledCarriers = fields.enabledCarriers;
@@ -195,6 +206,9 @@ export class ShippingEasyFrontendConfig implements ShippingEasyFrontendConfigFie
       name: c.name,
       apiKeyMasked: `...${c.apiKey.slice(-4)}`,
       storeId: c.storeId,
+      shippoApiTokenMasked: c.shippoApiToken
+        ? `...${c.shippoApiToken.slice(-4)}`
+        : "",
       originAddress: c.originAddress,
       packageDefaults: c.packageDefaults,
       enabledCarriers: c.enabledCarriers,

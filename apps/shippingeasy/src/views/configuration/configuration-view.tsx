@@ -14,6 +14,7 @@ const emptyConfig = {
   apiSecret: "",
   storeId: "",
   webhookSecret: "",
+  shippoApiToken: "",
   originAddress: {
     name: "",
     company: "",
@@ -28,8 +29,8 @@ const emptyConfig = {
   },
   packageDefaults: { weightOunces: 8 },
   enabledCarriers: ["usps", "ups"] as ("usps" | "ups" | "fedex" | "dhl" | "dhl_ecommerce")[],
-  domesticServicesRaw: "PriorityExpress",
-  internationalServicesRaw: "PriorityMailInternational,First",
+  domesticServicesRaw: "usps_priority_express",
+  internationalServicesRaw: "usps_priority_mail_international,usps_first_class_package_international_service",
   rateMarkup: { type: "none" as const, value: 0 },
   emailsHandledBy: "shippingeasy" as "shippingeasy" | "saleor",
 };
@@ -183,6 +184,20 @@ export const ConfigurationView = () => {
           storeId={form.storeId}
         />
 
+        <Text size={5}>Shippo API (for live shipping rates at checkout)</Text>
+        <Text size={2} color="default2">
+          ShippingEasy does not expose a rate-quoting API to customers. To show live USPS rates at
+          checkout, create a free account at goshippo.com and enter your API token below. Leave
+          blank to hide shipping rates at checkout.
+        </Text>
+        <Input
+          label="Shippo API token"
+          type="password"
+          value={form.shippoApiToken}
+          onChange={(e) => setForm((f) => ({ ...f, shippoApiToken: e.target.value }))}
+          helperText="From goshippo.com → API → Token — use the live token for real rates"
+        />
+
         <Text size={5}>Origin address</Text>
         <Input
           label="Name"
@@ -257,11 +272,12 @@ export const ConfigurationView = () => {
           }
         />
 
-        <Text size={5}>Service filtering</Text>
+        <Text size={5}>Service filtering (Shippo service tokens)</Text>
         <Text size={2} color="default2">
-          Restrict which carrier services appear at checkout based on destination. Leave blank to
-          show all services. Use ShippingEasy service codes, comma-separated (e.g.
-          PriorityExpress, Priority, First, PriorityMailInternational).
+          Restrict which carrier services appear at checkout. Use Shippo service-level tokens,
+          comma-separated. Common USPS tokens: usps_priority_express (Priority Mail Express),
+          usps_priority (Priority Mail), usps_priority_mail_international,
+          usps_first_class_package_international_service. Leave blank to show all services.
         </Text>
         <Input
           label="Domestic service allowlist"
