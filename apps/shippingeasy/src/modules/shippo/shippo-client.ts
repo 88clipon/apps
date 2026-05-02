@@ -8,6 +8,14 @@ const logger = createLogger("ShippoClient");
 
 const SHIPPO_API_BASE = "https://api.goshippo.com";
 
+/**
+ * Shippo often returns no rates when only weight is sent. Merchant config may
+ * omit dimensions; these defaults match a small retail parcel so rating works.
+ */
+const DEFAULT_PARCEL_LENGTH_IN = 6;
+const DEFAULT_PARCEL_WIDTH_IN = 4;
+const DEFAULT_PARCEL_HEIGHT_IN = 2;
+
 export const ShippoApiError = {
   NetworkError: BaseError.subclass("ShippoNetworkError", {
     props: { _internalName: "ShippoApiError.NetworkError" as const },
@@ -103,6 +111,10 @@ export class ShippoClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    const lengthIn = input.parcel.lengthInches ?? DEFAULT_PARCEL_LENGTH_IN;
+    const widthIn = input.parcel.widthInches ?? DEFAULT_PARCEL_WIDTH_IN;
+    const heightIn = input.parcel.heightInches ?? DEFAULT_PARCEL_HEIGHT_IN;
+
     const body = {
       address_from: {
         name: input.fromAddress.name ?? "",
@@ -130,16 +142,10 @@ export class ShippoClient {
         {
           weight: String(input.parcel.weightOunces),
           mass_unit: "oz",
-          ...(input.parcel.lengthInches != null && {
-            length: String(input.parcel.lengthInches),
-          }),
-          ...(input.parcel.widthInches != null && {
-            width: String(input.parcel.widthInches),
-          }),
-          ...(input.parcel.heightInches != null && {
-            height: String(input.parcel.heightInches),
-          }),
-          ...(input.parcel.lengthInches != null && { distance_unit: "in" }),
+          length: String(lengthIn),
+          width: String(widthIn),
+          height: String(heightIn),
+          distance_unit: "in",
         },
       ],
       async: false,
