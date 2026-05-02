@@ -1,7 +1,3 @@
 {
-  "mcpServers": {
-    "Saleor GraphQL API": {
-      "command": "./mcp/start-mcp-graphql.sh"
-    }
-  }
+  "mcpServers": {}
 }

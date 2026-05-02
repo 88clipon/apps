@@ -69,6 +69,8 @@ export class ListShippingRatesUseCase {
   async execute(
     input: ListShippingRatesInput,
   ): Promise<Result<SaleorShippingMethodResponseItem[], { code: ListShippingRatesErrorCode; message: string }>> {
+    console.log("[ShippingEasy] execute called, channel:", input.channelSlug, "address:", input.shippingAddress?.countryCode, input.shippingAddress?.postalCode);
+
     if (!input.shippingAddress) {
       return ok([]);
     }
@@ -173,10 +175,7 @@ export class ListShippingRatesUseCase {
       });
     }
 
-    logger.info("ShippingEasy API returned rates", {
-      count: result.value.rates.length,
-      rawServices: result.value.rates.map((r) => r.service),
-    });
+    console.log("[ShippingEasy] API raw rates:", result.value.rates.length, result.value.rates.map((r) => `${r.carrier}/${r.service}/${r.currency}/${r.rate}`).join(", "));
 
     await this.deps.rateCache.set(cacheKey, {
       rates: [...result.value.rates],

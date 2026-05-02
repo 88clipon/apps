@@ -75,14 +75,12 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
 
     if (result.isErr()) {
       logger.warn("ListShippingRates use case returned error", { error: result.error });
+      console.log("[ShippingEasy] Rate error:", JSON.stringify(result.error));
 
       return Response.json([], { status: 200 });
     }
 
-    logger.info("Returning shipping methods", {
-      count: result.value.length,
-      methods: result.value.map((m) => m.name),
-    });
+    console.log("[ShippingEasy] Returning methods:", result.value.length, JSON.stringify(result.value));
 
     return Response.json(result.value, { status: 200 });
   } catch (error) {
