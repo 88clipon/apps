@@ -30,6 +30,8 @@ export const env = createEnv({
       .url()
       .optional()
       .default("https://app.shippingeasy.com/api"),
+    /** Fallback Shippo API token used when no per-config token is set. */
+    SHIPPO_API_TOKEN: z.string().optional().default(""),
     /**
      * DynamoDB vars are optional because the app supports APL=file for dev.
      * They are only required when APL=dynamodb.
@@ -63,6 +65,7 @@ export const env = createEnv({
     PORT: process.env.PORT,
     SECRET_KEY: process.env.SECRET_KEY,
     SHIPPINGEASY_API_BASE_URL: process.env.SHIPPINGEASY_API_BASE_URL,
+    SHIPPO_API_TOKEN: process.env.SHIPPO_API_TOKEN,
   },
   isServer: typeof window === "undefined" || process.env.NODE_ENV === "test",
   onValidationError(issues) {

@@ -24,17 +24,20 @@ export const buildShippingEasyClient = (
 
 /**
  * Factory that creates a ShippoClient for real-time rate quotes at checkout.
- * Returns null if no Shippo API token is configured, in which case the rate
- * lookup use case will return an empty list (no rates shown).
+ * Uses the per-config token first; falls back to the SHIPPO_API_TOKEN env var.
+ * Returns null if no token is available, in which case the rate lookup use case
+ * returns an empty list so checkout degrades gracefully.
  */
 export const buildShippoClient = (
   config: ShippingEasyConfig,
   opts?: { timeoutMs?: number },
 ): ShippoClient | null => {
-  if (!config.shippoApiToken) return null;
+  const token = config.shippoApiToken || env.SHIPPO_API_TOKEN;
+
+  if (!token) return null;
 
   return new ShippoClient({
-    apiToken: config.shippoApiToken,
+    apiToken: token,
     timeoutMs: opts?.timeoutMs,
   });
 };
