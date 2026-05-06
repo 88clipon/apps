@@ -45,6 +45,9 @@ const shippoRateSchema = z.object({
   provider: z.string(),
   amount: z.coerce.number(),
   currency: z.string(),
+  /** Recipient-side price; often matches the storefront channel currency when `currency` does not. */
+  amount_local: z.coerce.number().optional(),
+  currency_local: z.string().optional().nullable(),
   servicelevel: z.object({
     name: z.string(),
     token: z.string(),

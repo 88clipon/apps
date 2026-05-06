@@ -10,6 +10,28 @@ import { bucketWeight, RateCache } from "./rate-cache";
 
 const logger = createLogger("ListShippingRates");
 
+/** Pick a Shippo rate line item in the checkout (channel) currency for Saleor validation. */
+function pickPriceForCheckout(
+  rate: ShippoRate,
+  checkoutCurrency: string,
+): { amount: number; currency: string } | null {
+  const target = checkoutCurrency.toUpperCase();
+
+  if (rate.currency.toUpperCase() === target) {
+    return { amount: rate.amount, currency: target };
+  }
+
+  if (
+    rate.currency_local &&
+    rate.amount_local != null &&
+    rate.currency_local.toUpperCase() === target
+  ) {
+    return { amount: rate.amount_local, currency: target };
+  }
+
+  return null;
+}
+
 /** Hard checkout-time budget. */
 const DEFAULT_TIMEOUT_MS = 5_000;
 /** How long returned rates stay warm in cache. */
@@ -187,7 +209,11 @@ export class ListShippingRatesUseCase {
 
     logger.info("Shippo returned rates", {
       count: result.value.rates.length,
-      rates: result.value.rates.map((r) => `${r.provider}/${r.servicelevel.token}=${r.amount}${r.currency}`),
+      rates: result.value.rates.map((r) => {
+        const picked = pickPriceForCheckout(r, input.checkoutCurrency);
+
+        return `${r.provider}/${r.servicelevel.token}=${picked ? `${picked.amount}${picked.currency}` : `unpriced(${r.currency}/${r.currency_local ?? "?"})`}`;
+      }),
     });
 
     await this.deps.rateCache.set(cacheKey, {
@@ -220,19 +246,38 @@ export class ListShippingRatesUseCase {
       destinationCountry.toUpperCase() === config.originAddress.country.toUpperCase();
     const serviceAllowlist = isDomestic ? config.domesticServices : config.internationalServices;
 
-    return rates
-      .filter((r) => r.currency.toUpperCase() === checkoutCurrency.toUpperCase())
-      .filter((r) => {
+    const priced = rates
+      .map((r) => {
+        const picked = pickPriceForCheckout(r, checkoutCurrency);
+
+        return picked ? { rate: r, ...picked } : null;
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null);
+
+    if (priced.length === 0 && rates.length > 0) {
+      logger.warn("All Shippo rates dropped: no price matched checkout currency", {
+        checkoutCurrency,
+        sample: rates.slice(0, 5).map((r) => ({
+          provider: r.provider,
+          token: r.servicelevel.token,
+          currency: r.currency,
+          currency_local: r.currency_local,
+        })),
+      });
+    }
+
+    return priced
+      .filter(({ rate: r }) => {
         if (!serviceAllowlist || serviceAllowlist.length === 0) return true;
         const token = r.servicelevel.token.toLowerCase();
 
         return serviceAllowlist.some((allowed) => token === allowed.toLowerCase());
       })
-      .map((r) => ({
+      .map(({ rate: r, amount, currency }) => ({
         id: `shippo-${r.object_id}`,
         name: r.servicelevel.name,
-        amount: config.applyMarkup(r.amount),
-        currency: r.currency.toUpperCase(),
+        amount: config.applyMarkup(amount),
+        currency,
         maximum_delivery_days: r.estimated_days ?? undefined,
         minimum_delivery_days: r.estimated_days ?? undefined,
       }));
