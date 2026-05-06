@@ -1,0 +1,9 @@
+mutation UpdateOrderPrivateMetadata($id: ID!, $input: [MetadataInput!]!) {
+  updatePrivateMetadata(id: $id, input: $input) {
+    errors {
+      field
+      code
+      message
+    }
+  }
+}

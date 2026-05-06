@@ -1,0 +1,60 @@
+fragment ShippingListMethodsCheckoutLines on CheckoutLine {
+  id
+  quantity
+  variant {
+    id
+    sku
+    name
+    weight {
+      value
+      unit
+    }
+    product {
+      id
+      name
+      weight {
+        value
+        unit
+      }
+    }
+  }
+  totalPrice {
+    gross {
+      amount
+      currency
+    }
+  }
+}
+
+fragment ShippingListMethodsCheckout on Checkout {
+  id
+  channel {
+    id
+    slug
+  }
+  totalPrice {
+    gross {
+      amount
+      currency
+    }
+  }
+  shippingAddress {
+    ...AddressFragment
+  }
+  billingAddress {
+    ...AddressFragment
+  }
+  lines {
+    ...ShippingListMethodsCheckoutLines
+  }
+}
+
+subscription ShippingListMethodsForCheckout {
+  event {
+    ... on ShippingListMethodsForCheckout {
+      checkout {
+        ...ShippingListMethodsCheckout
+      }
+    }
+  }
+}

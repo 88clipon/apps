@@ -22,6 +22,7 @@
     "prepare": "husky",
     "start": "turbo run start",
     "start:shippingeasy": "pnpm --dir apps/shippingeasy run start",
+    "start:shippo": "pnpm --dir apps/shippo run start",
     "test": "turbo run test",
     "test:ci": "turbo run test:ci"
   },

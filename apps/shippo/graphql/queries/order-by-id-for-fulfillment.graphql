@@ -1,0 +1,29 @@
+query OrderByIdForFulfillment($id: ID!) {
+  order(id: $id) {
+    id
+    number
+    status
+    fulfillments {
+      id
+      status
+      trackingNumber
+    }
+    lines {
+      id
+      quantity
+      quantityFulfilled
+      variant {
+        id
+        stocks {
+          warehouse {
+            id
+          }
+        }
+      }
+    }
+    privateMetadata {
+      key
+      value
+    }
+  }
+}

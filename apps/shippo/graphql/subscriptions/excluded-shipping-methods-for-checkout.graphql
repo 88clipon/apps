@@ -1,0 +1,16 @@
+subscription ExcludedShippingMethodsForCheckout {
+  event {
+    ... on CheckoutFilterShippingMethods {
+      checkout {
+        id
+        channel {
+          slug
+        }
+      }
+      shippingMethods {
+        id
+        name
+      }
+    }
+  }
+}

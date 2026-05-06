@@ -28,7 +28,7 @@ function getCheckoutFromSyncPayload(
   return p.checkout ?? p.event?.checkout;
 }
 
-const logger = createLogger("ShippingListMethodsForCheckout route");
+const logger = createLogger("Shippo list methods for checkout");
 
 /**
  * A process-wide cache is good enough for a single serverless instance; in
@@ -47,6 +47,10 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
     const saleorApiUrlResult = createSaleorApiUrl(ctx.authData.saleorApiUrl);
 
     if (saleorApiUrlResult.isErr()) {
+      logger.warn("Invalid saleorApiUrl in webhook auth; cannot load app config", {
+        saleorApiUrl: ctx.authData.saleorApiUrl,
+      });
+
       return Response.json([], { status: 200 });
     }
 

@@ -1,0 +1,17 @@
+subscription OrderCancelled {
+  event {
+    ... on OrderCancelled {
+      order {
+        id
+        number
+        channel {
+          slug
+        }
+        privateMetadata {
+          key
+          value
+        }
+      }
+    }
+  }
+}

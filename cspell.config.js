@@ -84,6 +84,8 @@ export default {
     "shippingeasy",
     "HMAC",
     "Shippo",
+    "shippo",
+    "ZPLII",
   ],
   language: "en-US",
   useGitignore: true,

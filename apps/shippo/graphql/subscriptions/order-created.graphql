@@ -1,0 +1,83 @@
+fragment OrderLineForShippo on OrderLine {
+  id
+  productName
+  variantName
+  productSku
+  quantity
+  quantityFulfilled
+  totalPrice {
+    gross {
+      amount
+      currency
+    }
+  }
+  unitPrice {
+    gross {
+      amount
+      currency
+    }
+  }
+  variant {
+    id
+    sku
+    weight {
+      value
+      unit
+    }
+  }
+}
+
+fragment OrderForShippo on Order {
+  id
+  number
+  created
+  status
+  userEmail
+  channel {
+    id
+    slug
+    currencyCode
+  }
+  total {
+    gross {
+      amount
+      currency
+    }
+  }
+  shippingPrice {
+    gross {
+      amount
+    }
+  }
+  deliveryMethod {
+    __typename
+    ... on ShippingMethod {
+      id
+      name
+    }
+  }
+  shippingAddress {
+    ...AddressFragment
+  }
+  billingAddress {
+    ...AddressFragment
+  }
+  lines {
+    ...OrderLineForShippo
+  }
+  fulfillments {
+    id
+    status
+    trackingNumber
+  }
+}
+
+subscription OrderCreated {
+  event {
+    ... on OrderCreated {
+      order {
+        ...OrderForShippo
+      }
+    }
+  }
+}
