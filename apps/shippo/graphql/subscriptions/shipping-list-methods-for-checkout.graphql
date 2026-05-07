@@ -25,7 +25,6 @@ fragment ShippingListMethodsCheckout on Checkout {
   channel {
     id
     slug
-    currencyCode
   }
   shippingAddress {
     ...AddressFragment

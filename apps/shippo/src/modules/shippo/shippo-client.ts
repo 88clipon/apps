@@ -16,6 +16,61 @@ const DEFAULT_PARCEL_LENGTH_IN = 6;
 const DEFAULT_PARCEL_WIDTH_IN = 4;
 const DEFAULT_PARCEL_HEIGHT_IN = 2;
 
+/**
+ * Shippo validates addresses strictly (e.g. US state must be a real code).
+ * Match the proven API shape: required fields only, optional fields omitted when empty
+ * (no placeholder strings — city/state/country combos like GB often omit `state`).
+ */
+function buildShippoAddressPayload(parts: {
+  name: string;
+  company?: string | null;
+  street1: string;
+  street2?: string | null;
+  city: string;
+  state?: string | null;
+  zip: string;
+  country: string;
+  phone?: string | null;
+  /** Used when `name` is blank after trim. */
+  defaultName: string;
+}): Record<string, string> {
+  const name = parts.name.trim() || parts.defaultName;
+  const country = parts.country.trim().toUpperCase();
+  const o: Record<string, string> = {
+    name,
+    street1: parts.street1.trim(),
+    city: parts.city.trim(),
+    zip: parts.zip.trim(),
+    country,
+  };
+
+  const state = parts.state?.trim() ?? "";
+
+  if (state.length > 0) {
+    o.state = state;
+  }
+
+  const street2 = parts.street2?.trim() ?? "";
+
+  if (street2.length > 0) {
+    o.street2 = street2;
+  }
+
+  const company = parts.company?.trim() ?? "";
+
+  if (company.length > 0) {
+    o.company = company;
+  }
+
+  const phone = parts.phone?.trim() ?? "";
+
+  if (phone.length > 0) {
+    o.phone = phone;
+  }
+
+  return o;
+}
+
 export const ShippoApiError = {
   NetworkError: BaseError.subclass("ShippoNetworkError", {
     props: { _internalName: "ShippoApiError.NetworkError" as const },
@@ -380,28 +435,30 @@ export class ShippoClient {
     const heightIn = input.parcel.heightInches ?? DEFAULT_PARCEL_HEIGHT_IN;
 
     const body = {
-      address_from: {
+      address_from: buildShippoAddressPayload({
         name: input.fromAddress.name ?? "",
-        company: input.fromAddress.company ?? "",
+        company: input.fromAddress.company,
         street1: input.fromAddress.street1,
-        street2: input.fromAddress.street2 ?? "",
+        street2: input.fromAddress.street2,
         city: input.fromAddress.city,
-        state: input.fromAddress.state ?? "",
+        state: input.fromAddress.state,
         zip: input.fromAddress.zip,
         country: input.fromAddress.country,
-        phone: input.fromAddress.phone ?? "",
-      },
-      address_to: {
+        phone: input.fromAddress.phone,
+        defaultName: "Shipper",
+      }),
+      address_to: buildShippoAddressPayload({
         name: input.toAddress.name ?? "",
-        company: input.toAddress.company ?? "",
+        company: input.toAddress.company,
         street1: input.toAddress.street1,
-        street2: input.toAddress.street2 ?? "",
+        street2: input.toAddress.street2,
         city: input.toAddress.city,
-        state: input.toAddress.state ?? "",
+        state: input.toAddress.state,
         zip: input.toAddress.zip,
         country: input.toAddress.country,
-        phone: input.toAddress.phone ?? "",
-      },
+        phone: input.toAddress.phone,
+        defaultName: "Recipient",
+      }),
       parcels: [
         {
           weight: String(input.parcel.weightOunces),

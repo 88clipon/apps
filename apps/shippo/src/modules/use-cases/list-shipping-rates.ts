@@ -10,23 +10,25 @@ import { bucketWeight, RateCache } from "./rate-cache";
 
 const logger = createLogger("ListShippingRates");
 
-/** Pick a Shippo rate line item in the checkout (channel) currency for Saleor validation. */
-function pickPriceForCheckout(
-  rate: ShippoRate,
-  checkoutCurrency: string,
-): { amount: number; currency: string } | null {
-  const target = checkoutCurrency.toUpperCase();
+const CHECKOUT_SHIPPING_CURRENCY = "USD";
 
-  if (rate.currency.toUpperCase() === target) {
-    return { amount: rate.amount, currency: target };
+/**
+ * Merchant policy: returned shipping method prices are always in USD (dollars),
+ * using Shippo's USD line (`amount` + currency USD, or `amount_local` when local is USD).
+ */
+function pickUsdPriceForCheckout(rate: ShippoRate): { amount: number; currency: string } | null {
+  const usd = CHECKOUT_SHIPPING_CURRENCY;
+
+  if (rate.currency.toUpperCase() === usd) {
+    return { amount: rate.amount, currency: usd };
   }
 
   if (
     rate.currency_local &&
     rate.amount_local != null &&
-    rate.currency_local.toUpperCase() === target
+    rate.currency_local.toUpperCase() === usd
   ) {
-    return { amount: rate.amount_local, currency: target };
+    return { amount: rate.amount_local, currency: usd };
   }
 
   return null;
@@ -52,7 +54,6 @@ export type ListShippingRatesInput = {
   saleorApiUrl: SaleorApiUrl;
   appId: string;
   channelSlug: string;
-  checkoutCurrency: string;
   shippingAddress: {
     firstName?: string | null;
     lastName?: string | null;
@@ -149,7 +150,6 @@ export class ListShippingRatesUseCase {
         this.toSaleorShape({
           rates: cached.rates,
           config,
-          checkoutCurrency: input.checkoutCurrency,
           destinationCountry: input.shippingAddress.countryCode,
         }),
       );
@@ -159,25 +159,25 @@ export class ListShippingRatesUseCase {
       {
         toAddress: {
           name: `${input.shippingAddress.firstName ?? ""} ${input.shippingAddress.lastName ?? ""}`.trim(),
-          company: input.shippingAddress.companyName ?? "",
+          company: input.shippingAddress.companyName,
           street1: input.shippingAddress.streetAddress1,
-          street2: input.shippingAddress.streetAddress2 ?? "",
+          street2: input.shippingAddress.streetAddress2,
           city: input.shippingAddress.city,
-          state: input.shippingAddress.countryArea ?? "",
+          state: input.shippingAddress.countryArea,
           zip: input.shippingAddress.postalCode,
           country: input.shippingAddress.countryCode,
-          phone: input.shippingAddress.phone ?? "",
+          phone: input.shippingAddress.phone,
         },
         fromAddress: {
           name: config.originAddress.name,
-          company: config.originAddress.company ?? "",
+          company: config.originAddress.company,
           street1: config.originAddress.street1,
-          street2: config.originAddress.street2 ?? "",
+          street2: config.originAddress.street2,
           city: config.originAddress.city,
           state: config.originAddress.state,
           zip: config.originAddress.postalCode,
           country: config.originAddress.country,
-          phone: config.originAddress.phone ?? "",
+          phone: config.originAddress.phone,
         },
         parcel: {
           weightOunces: Math.max(weightBucket, config.packageDefaults.weightOunces),
@@ -212,9 +212,9 @@ export class ListShippingRatesUseCase {
       shipmentStatus: result.value.status,
       shipmentMessages: result.value.messages,
       rates: result.value.rates.map((r) => {
-        const picked = pickPriceForCheckout(r, input.checkoutCurrency);
+        const picked = pickUsdPriceForCheckout(r);
 
-        return `${r.provider}/${r.servicelevel.token}=${picked ? `${picked.amount}${picked.currency}` : `unpriced(${r.currency}/${r.currency_local ?? "?"})`}`;
+        return `${r.provider}/${r.servicelevel.token}=${picked ? `${picked.amount}${picked.currency}` : `no-usd(${r.currency}/${r.currency_local ?? "?"})`}`;
       }),
     });
 
@@ -244,7 +244,6 @@ export class ListShippingRatesUseCase {
       this.toSaleorShape({
         rates: result.value.rates,
         config,
-        checkoutCurrency: input.checkoutCurrency,
         destinationCountry: input.shippingAddress.countryCode,
       }),
     );
@@ -253,12 +252,10 @@ export class ListShippingRatesUseCase {
   private toSaleorShape({
     rates,
     config,
-    checkoutCurrency,
     destinationCountry,
   }: {
     rates: readonly ShippoRate[];
     config: ShippoAppConfig;
-    checkoutCurrency: string;
     destinationCountry: string;
   }): SaleorShippingMethodResponseItem[] {
     const isDomestic =
@@ -267,15 +264,14 @@ export class ListShippingRatesUseCase {
 
     const priced = rates
       .map((r) => {
-        const picked = pickPriceForCheckout(r, checkoutCurrency);
+        const picked = pickUsdPriceForCheckout(r);
 
         return picked ? { rate: r, ...picked } : null;
       })
       .filter((x): x is NonNullable<typeof x> => x != null);
 
     if (priced.length === 0 && rates.length > 0) {
-      logger.warn("All Shippo rates dropped: no price matched checkout currency", {
-        checkoutCurrency,
+      logger.warn("All Shippo rates dropped: no USD price field on rate", {
         sample: rates.slice(0, 5).map((r) => ({
           provider: r.provider,
           token: r.servicelevel.token,
@@ -301,7 +297,7 @@ export class ListShippingRatesUseCase {
       serviceAllowlist.length > 0
     ) {
       logger.warn(
-        "Service allowlist excluded all priced Shippo rates; returning all rates that matched checkout currency",
+        "Service allowlist excluded all priced Shippo rates; returning all USD-priced Shippo rates",
         {
           isDomestic,
           destinationCountry,

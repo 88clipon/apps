@@ -75,7 +75,6 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
       saleorApiUrl: saleorApiUrlResult.value,
       appId: ctx.authData.appId,
       channelSlug: checkout.channel.slug,
-      checkoutCurrency: checkout.channel.currencyCode,
       shippingAddress: checkout.shippingAddress
         ? {
             firstName: checkout.shippingAddress.firstName,
