@@ -233,12 +233,12 @@ export class ListShippingRatesUseCase {
           ? "Check Shippo carrier accounts and origin address."
           : "Most likely no international carrier accounts (UPS Worldwide / FedEx Intl / DHL Express) are enabled in Shippo, or the address requires customs declarations.",
       });
+    } else {
+      await this.deps.rateCache.set(cacheKey, {
+        rates: [...result.value.rates],
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      });
     }
-
-    await this.deps.rateCache.set(cacheKey, {
-      rates: [...result.value.rates],
-      expiresAt: Date.now() + CACHE_TTL_MS,
-    });
 
     return ok(
       this.toSaleorShape({
