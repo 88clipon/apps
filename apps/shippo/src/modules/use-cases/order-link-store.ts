@@ -10,6 +10,8 @@ export type OrderLink = {
   saleorOrderId: string;
   /** Stable reference passed to Shippo transaction `metadata` and inbound webhooks. */
   externalOrderId: string;
+  /** Shippo Order object_id (the Orders page entry); empty if not yet pushed. */
+  shippoOrderId: string;
   /** Shippo transaction object_id after label purchase (may be empty before purchase). */
   shippoTransactionId: string;
   channelSlug: string;
@@ -93,12 +95,14 @@ export class DynamoOrderLinkStore implements OrderLinkStore {
       );
 
       if (!result.Item) return null;
-      const { saleorOrderId, externalOrderId, shippoTransactionId, channelSlug } = result.Item as {
-        saleorOrderId?: string;
-        externalOrderId?: string;
-        shippoTransactionId?: string;
-        channelSlug?: string;
-      };
+      const { saleorOrderId, externalOrderId, shippoOrderId, shippoTransactionId, channelSlug } =
+        result.Item as {
+          saleorOrderId?: string;
+          externalOrderId?: string;
+          shippoOrderId?: string;
+          shippoTransactionId?: string;
+          channelSlug?: string;
+        };
 
       if (!saleorOrderId || !externalOrderId || !channelSlug) {
         return null;
@@ -107,6 +111,7 @@ export class DynamoOrderLinkStore implements OrderLinkStore {
       return {
         saleorOrderId,
         externalOrderId,
+        shippoOrderId: shippoOrderId ?? "",
         shippoTransactionId: shippoTransactionId ?? "",
         channelSlug,
       };

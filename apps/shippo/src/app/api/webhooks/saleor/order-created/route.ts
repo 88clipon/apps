@@ -10,8 +10,11 @@ import { SaleorGateway } from "@/modules/saleor/saleor-gateway";
 import { buildShippoClient } from "@/modules/use-cases/build-client";
 import { orderLinkStore } from "@/modules/use-cases/factories";
 import { PushOrderToShippoUseCase } from "@/modules/use-cases/push-order-to-shippo";
+import { computeTotalWeightOunces } from "@/modules/use-cases/weight-calculator";
 
 import { orderCreatedWebhookDefinition } from "./webhook-definition";
+
+const FALLBACK_LINE_WEIGHT_OZ = 8;
 
 const logger = createLogger("OrderCreated route");
 
@@ -68,6 +71,23 @@ const handler = orderCreatedWebhookDefinition.createHandler(async (_req, ctx) =>
         ? order.deliveryMethod
         : null;
 
+    const totalWeightOunces = computeTotalWeightOunces(
+      order.lines.map((l) => ({
+        quantity: l.quantity,
+        unitWeightValue: l.variant?.weight?.value ?? null,
+        unitWeightUnit: l.variant?.weight?.unit ?? null,
+      })),
+      FALLBACK_LINE_WEIGHT_OZ,
+    );
+
+    const subtotal = order.subtotal?.gross.amount ?? 0;
+    const total = order.total.gross.amount;
+    const tax =
+      order.total.tax?.amount ??
+      Math.max(0, total - subtotal - (order.shippingPrice?.gross.amount ?? 0));
+    const shippingCost = order.shippingPrice?.gross.amount ?? 0;
+    const currency = order.total.gross.currency;
+
     const result = await useCase.execute(
       {
         saleorApiUrl: saleorApiUrlResult.value,
@@ -79,8 +99,12 @@ const handler = orderCreatedWebhookDefinition.createHandler(async (_req, ctx) =>
           channelSlug: order.channel.slug,
           channelCurrency: order.channel.currencyCode,
           email: order.userEmail ?? null,
-          total: order.total.gross.amount,
-          currency: order.total.gross.currency,
+          total,
+          subtotal,
+          tax,
+          shippingCost,
+          currency,
+          totalWeightOunces,
           shippingMethodId: delivery?.id ?? null,
           shippingMethodName: delivery?.name ?? null,
           shippingAddress: order.shippingAddress
@@ -116,6 +140,17 @@ const handler = orderCreatedWebhookDefinition.createHandler(async (_req, ctx) =>
             sku: l.productSku ?? null,
             quantity: l.quantity,
             unitPrice: l.unitPrice.gross.amount,
+            totalPrice: l.totalPrice.gross.amount,
+            unitWeightOunces: computeTotalWeightOunces(
+              [
+                {
+                  quantity: 1,
+                  unitWeightValue: l.variant?.weight?.value ?? null,
+                  unitWeightUnit: l.variant?.weight?.unit ?? null,
+                },
+              ],
+              FALLBACK_LINE_WEIGHT_OZ,
+            ),
           })),
         },
       },

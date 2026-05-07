@@ -149,6 +149,66 @@ const refundResponseSchema = z.object({
   transaction: z.string().optional().nullable(),
 });
 
+const orderResponseSchema = z.object({
+  object_id: z.string(),
+  order_number: z.string().optional().nullable(),
+  order_status: z.string().optional().nullable(),
+  placed_at: z.string().optional().nullable(),
+  shop_app: z.string().optional().nullable(),
+});
+
+export type ShippoOrderLineItem = {
+  title: string;
+  sku?: string | null;
+  quantity: number;
+  totalPrice: number;
+  currency: string;
+  weightOunces?: number | null;
+};
+
+export type ShippoCreateOrderInput = {
+  orderNumber: string;
+  externalOrderId: string;
+  placedAt: string;
+  orderStatus?: "PAID" | "AWAITPAY" | "PARTIALLY_FULFILLED" | "FULFILLED" | "REFUNDED" | "CANCELLED";
+  email?: string | null;
+  toAddress: {
+    name?: string | null;
+    company?: string | null;
+    street1: string;
+    street2?: string | null;
+    city: string;
+    state?: string | null;
+    zip: string;
+    country: string;
+    phone?: string | null;
+    email?: string | null;
+  };
+  fromAddress?: {
+    name: string;
+    company?: string | null;
+    street1: string;
+    street2?: string | null;
+    city: string;
+    state?: string | null;
+    zip: string;
+    country: string;
+    phone?: string | null;
+    email?: string | null;
+  };
+  lineItems: ReadonlyArray<ShippoOrderLineItem>;
+  totals: {
+    subtotal: number;
+    tax: number;
+    shippingCost: number;
+    total: number;
+    currency: string;
+  };
+  weightOunces: number;
+  shippingMethodName?: string | null;
+  notes?: string | null;
+};
+
 export type ShippoRateRequest = {
   toAddress: {
     name?: string | null;
@@ -334,6 +394,176 @@ export class ShippoClient {
         objectId: result.data.object_id,
         status: result.data.status,
         trackingNumber: result.data.tracking_number ?? null,
+      });
+    } catch (cause) {
+      if ((cause as Error | undefined)?.name === "AbortError") {
+        return err(
+          new ShippoApiError.Timeout(`Shippo request timed out after ${timeoutMs}ms`, { cause }),
+        );
+      }
+
+      return err(new ShippoApiError.NetworkError("Shippo network error", { cause }));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  async createOrder(
+    input: ShippoCreateOrderInput,
+  ): Promise<
+    Result<
+      { objectId: string; orderNumber: string | null; status: string | null },
+      ShippoApiErrorInstance
+    >
+  > {
+    const timeoutMs = this.timeoutMs;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const recipient = buildShippoAddressPayload({
+      name: input.toAddress.name ?? "",
+      company: input.toAddress.company,
+      street1: input.toAddress.street1,
+      street2: input.toAddress.street2,
+      city: input.toAddress.city,
+      state: input.toAddress.state,
+      zip: input.toAddress.zip,
+      country: input.toAddress.country,
+      phone: input.toAddress.phone,
+      defaultName: "Recipient",
+    });
+
+    const recipientWithEmail = (() => {
+      const email = input.toAddress.email?.trim() ?? "";
+
+      if (email.length > 0) {
+        return { ...recipient, email };
+      }
+
+      return recipient;
+    })();
+
+    const sender = input.fromAddress
+      ? buildShippoAddressPayload({
+          name: input.fromAddress.name,
+          company: input.fromAddress.company,
+          street1: input.fromAddress.street1,
+          street2: input.fromAddress.street2,
+          city: input.fromAddress.city,
+          state: input.fromAddress.state,
+          zip: input.fromAddress.zip,
+          country: input.fromAddress.country,
+          phone: input.fromAddress.phone,
+          defaultName: "Shipper",
+        })
+      : null;
+
+    const senderWithEmail = (() => {
+      if (!sender) return null;
+      const email = input.fromAddress?.email?.trim() ?? "";
+
+      if (email.length > 0) {
+        return { ...sender, email };
+      }
+
+      return sender;
+    })();
+
+    const formatNumber = (n: number) => (Math.round(n * 100) / 100).toFixed(2);
+    const safeWeight = (oz: number) => {
+      if (!Number.isFinite(oz) || oz <= 0) return "1";
+
+      return formatNumber(oz);
+    };
+
+    const body: Record<string, unknown> = {
+      to_address: recipientWithEmail,
+      line_items: input.lineItems.map((li) => ({
+        title: li.title.slice(0, 200),
+        sku: li.sku ?? "",
+        quantity: Math.max(1, Math.floor(li.quantity)),
+        total_price: formatNumber(li.totalPrice),
+        currency: li.currency.toUpperCase(),
+        weight: safeWeight(li.weightOunces ?? 0),
+        weight_unit: "oz",
+      })),
+      placed_at: input.placedAt,
+      order_number: input.orderNumber,
+      order_status: input.orderStatus ?? "PAID",
+      shipping_method: input.shippingMethodName ?? "",
+      shipping_cost: formatNumber(input.totals.shippingCost),
+      shipping_cost_currency: input.totals.currency.toUpperCase(),
+      subtotal_price: formatNumber(input.totals.subtotal),
+      total_price: formatNumber(input.totals.total),
+      total_tax: formatNumber(input.totals.tax),
+      currency: input.totals.currency.toUpperCase(),
+      weight: safeWeight(input.weightOunces),
+      weight_unit: "oz",
+      notes: input.notes ?? `Saleor order linked as ${input.externalOrderId}`,
+    };
+
+    if (senderWithEmail) {
+      body.from_address = senderWithEmail;
+    }
+
+    try {
+      const response = await fetch(`${SHIPPO_API_BASE}/orders/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `ShippoToken ${this.apiToken}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      const rawText = await response.text();
+
+      if (response.status === 401 || response.status === 403) {
+        return err(
+          new ShippoApiError.Unauthorized(
+            `Shippo auth failed (${response.status}). Check your Shippo API token.`,
+            { cause: new BaseError(rawText.slice(0, 200)) },
+          ),
+        );
+      }
+
+      if (!response.ok) {
+        logger.warn("Shippo create order non-ok", {
+          status: response.status,
+          body: rawText.slice(0, 500),
+        });
+
+        return err(
+          new ShippoApiError.BadRequest(`Shippo create order failed (${response.status})`, {
+            cause: new BaseError(rawText.slice(0, 800)),
+          }),
+        );
+      }
+
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (cause) {
+        return err(new ShippoApiError.InvalidResponse("Shippo returned non-JSON", { cause }));
+      }
+
+      const result = orderResponseSchema.safeParse(parsed);
+
+      if (!result.success) {
+        return err(
+          new ShippoApiError.InvalidResponse("Shippo order response failed validation", {
+            cause: result.error,
+          }),
+        );
+      }
+
+      return ok({
+        objectId: result.data.object_id,
+        orderNumber: result.data.order_number ?? null,
+        status: result.data.order_status ?? null,
       });
     } catch (cause) {
       if ((cause as Error | undefined)?.name === "AbortError") {

@@ -3,6 +3,7 @@
  */
 export const MetadataKeys = {
   shippoExternalOrderId: "shippo.external_order_id",
+  shippoOrderId: "shippo.order_id",
   shippoTransactionId: "shippo.transaction_id",
   shippoStatus: "shippo.status",
   shippoLastSyncAt: "shippo.last_sync_at",

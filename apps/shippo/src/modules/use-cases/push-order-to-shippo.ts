@@ -8,7 +8,7 @@ import { SaleorApiUrl } from "@/modules/saleor/saleor-api-url";
 import { SaleorGateway } from "@/modules/saleor/saleor-gateway";
 import { ShippoClient } from "@/modules/shippo/shippo-client";
 
-import { MetadataKeys } from "./metadata-keys";
+import { MetadataKeys, type MetadataKeyValue } from "./metadata-keys";
 import { OrderLinkStore } from "./order-link-store";
 import { SyncTrackingToSaleorUseCase } from "./sync-tracking-to-saleor";
 
@@ -37,7 +37,14 @@ export type PushOrderInput = {
     channelCurrency: string;
     email: string | null;
     total: number;
+    /** Sum of line totals (gross) before shipping/tax. */
+    subtotal: number;
+    /** Total tax amount (gross - net or explicit). */
+    tax: number;
+    shippingCost: number;
     currency: string;
+    /** Total parcel weight in ounces. Falls back to a sensible default if 0. */
+    totalWeightOunces: number;
     shippingMethodId: string | null;
     shippingMethodName: string | null;
     shippingAddress: {
@@ -69,6 +76,9 @@ export type PushOrderInput = {
       sku: string | null;
       quantity: number;
       unitPrice: number;
+      totalPrice: number;
+      /** Per-unit weight in ounces if known. */
+      unitWeightOunces: number | null;
     }>;
   };
 };
@@ -132,7 +142,7 @@ export class PushOrderToShippoUseCase {
     auth: { token: string; saleorApiUrl: string },
   ): Promise<
     Result<
-      { externalOrderId: string; shippoTransactionId: string | null },
+      { externalOrderId: string; shippoOrderId: string | null; shippoTransactionId: string | null },
       | InstanceType<typeof PushOrderError.NotConfigured>
       | InstanceType<typeof PushOrderError.UpstreamFailed>
       | InstanceType<typeof PushOrderError.MetadataUpdateFailed>
@@ -174,10 +184,9 @@ export class PushOrderToShippoUseCase {
       rateObjectIdResolved: Boolean(rateObjectId),
     });
 
-    if (!config.autoPurchaseLabel) {
-      logger.info("autoPurchaseLabel disabled; writing linkage metadata only", {
+    if (!input.order.shippingAddress) {
+      logger.warn("Order has no shipping address; cannot create Shippo order", {
         orderId: input.order.id,
-        externalOrderId,
       });
 
       await this.deps.orderLinkStore.save({
@@ -186,6 +195,7 @@ export class PushOrderToShippoUseCase {
         link: {
           saleorOrderId: input.order.id,
           externalOrderId,
+          shippoOrderId: "",
           shippoTransactionId: "",
           channelSlug: input.order.channelSlug,
         },
@@ -193,7 +203,7 @@ export class PushOrderToShippoUseCase {
 
       const metaResult = await gateway.writePrivateMetadata(input.order.id, [
         { key: MetadataKeys.shippoExternalOrderId, value: externalOrderId },
-        { key: MetadataKeys.shippoStatus, value: "pending_manual_label" },
+        { key: MetadataKeys.shippoStatus, value: "skipped_no_shipping_address" },
         { key: MetadataKeys.shippoLastSyncAt, value: new Date().toISOString() },
       ]);
 
@@ -205,7 +215,129 @@ export class PushOrderToShippoUseCase {
         );
       }
 
-      return ok({ externalOrderId, shippoTransactionId: null });
+      return ok({ externalOrderId, shippoOrderId: null, shippoTransactionId: null });
+    }
+
+    /*
+     * Always push the order to Shippo's Orders page first so merchants can
+     * see and manage every order in Shippo regardless of label-buying mode.
+     */
+    const orderResult = await client.createOrder({
+      orderNumber: input.order.number,
+      externalOrderId,
+      placedAt: input.order.createdAt,
+      orderStatus: "PAID",
+      email: input.order.email,
+      toAddress: {
+        name: [input.order.shippingAddress.firstName, input.order.shippingAddress.lastName]
+          .filter(Boolean)
+          .join(" "),
+        company: input.order.shippingAddress.companyName,
+        street1: input.order.shippingAddress.streetAddress1,
+        street2: input.order.shippingAddress.streetAddress2,
+        city: input.order.shippingAddress.city,
+        state: input.order.shippingAddress.countryArea,
+        zip: input.order.shippingAddress.postalCode,
+        country: input.order.shippingAddress.countryCode,
+        phone: input.order.shippingAddress.phone,
+        email: input.order.email,
+      },
+      fromAddress: {
+        name: config.originAddress.name,
+        company: config.originAddress.company,
+        street1: config.originAddress.street1,
+        street2: config.originAddress.street2,
+        city: config.originAddress.city,
+        state: config.originAddress.state,
+        zip: config.originAddress.postalCode,
+        country: config.originAddress.country,
+        phone: config.originAddress.phone,
+        email: config.originAddress.email,
+      },
+      lineItems: input.order.lines.map((l) => ({
+        title: l.name,
+        sku: l.sku,
+        quantity: l.quantity,
+        totalPrice: l.totalPrice,
+        currency: input.order.currency,
+        weightOunces: l.unitWeightOunces,
+      })),
+      totals: {
+        subtotal: input.order.subtotal,
+        tax: input.order.tax,
+        shippingCost: input.order.shippingCost,
+        total: input.order.total,
+        currency: input.order.currency,
+      },
+      weightOunces: input.order.totalWeightOunces,
+      shippingMethodName: input.order.shippingMethodName,
+      notes: `Saleor order ${input.order.number} (${externalOrderId})`,
+    });
+
+    let shippoOrderId: string | null = null;
+
+    if (orderResult.isErr()) {
+      logger.warn("Shippo create order failed; continuing with label flow", {
+        orderId: input.order.id,
+        error: orderResult.error.message,
+      });
+    } else {
+      shippoOrderId = orderResult.value.objectId;
+      logger.info("Shippo order created", {
+        orderId: input.order.id,
+        shippoOrderId,
+        status: orderResult.value.status,
+      });
+    }
+
+    if (!config.autoPurchaseLabel) {
+      logger.info("autoPurchaseLabel disabled; recording linkage and stopping after order push", {
+        orderId: input.order.id,
+        externalOrderId,
+        shippoOrderId,
+      });
+
+      await this.deps.orderLinkStore.save({
+        saleorApiUrl: input.saleorApiUrl,
+        appId: input.appId,
+        link: {
+          saleorOrderId: input.order.id,
+          externalOrderId,
+          shippoOrderId: shippoOrderId ?? "",
+          shippoTransactionId: "",
+          channelSlug: input.order.channelSlug,
+        },
+      });
+
+      const metaEntries: Array<{ key: MetadataKeyValue; value: string }> = [
+        { key: MetadataKeys.shippoExternalOrderId, value: externalOrderId },
+        { key: MetadataKeys.shippoStatus, value: shippoOrderId ? "pushed_to_shippo" : "push_failed" },
+        { key: MetadataKeys.shippoLastSyncAt, value: new Date().toISOString() },
+      ];
+
+      if (shippoOrderId) {
+        metaEntries.push({ key: MetadataKeys.shippoOrderId, value: shippoOrderId });
+      }
+
+      const metaResult = await gateway.writePrivateMetadata(input.order.id, metaEntries);
+
+      if (metaResult.isErr()) {
+        return err(
+          new PushOrderError.MetadataUpdateFailed("Failed to write Shippo metadata", {
+            cause: metaResult.error,
+          }),
+        );
+      }
+
+      if (!shippoOrderId) {
+        return err(
+          new PushOrderError.UpstreamFailed("Shippo create order failed", {
+            cause: orderResult.isErr() ? orderResult.error : new BaseError("unknown"),
+          }),
+        );
+      }
+
+      return ok({ externalOrderId, shippoOrderId, shippoTransactionId: null });
     }
 
     if (!rateObjectId) {
@@ -220,19 +352,23 @@ export class PushOrderToShippoUseCase {
         link: {
           saleorOrderId: input.order.id,
           externalOrderId,
+          shippoOrderId: shippoOrderId ?? "",
           shippoTransactionId: "",
           channelSlug: input.order.channelSlug,
         },
       });
 
-      const metaResult = await gateway.writePrivateMetadata(input.order.id, [
+      const metaEntries: Array<{ key: MetadataKeyValue; value: string }> = [
         { key: MetadataKeys.shippoExternalOrderId, value: externalOrderId },
-        {
-          key: MetadataKeys.shippoStatus,
-          value: "skipped_no_shippo_rate",
-        },
+        { key: MetadataKeys.shippoStatus, value: "skipped_no_shippo_rate" },
         { key: MetadataKeys.shippoLastSyncAt, value: new Date().toISOString() },
-      ]);
+      ];
+
+      if (shippoOrderId) {
+        metaEntries.push({ key: MetadataKeys.shippoOrderId, value: shippoOrderId });
+      }
+
+      const metaResult = await gateway.writePrivateMetadata(input.order.id, metaEntries);
 
       if (metaResult.isErr()) {
         return err(
@@ -242,7 +378,7 @@ export class PushOrderToShippoUseCase {
         );
       }
 
-      return ok({ externalOrderId, shippoTransactionId: null });
+      return ok({ externalOrderId, shippoOrderId, shippoTransactionId: null });
     }
 
     const purchase = await client.purchaseLabel({
@@ -277,17 +413,24 @@ export class PushOrderToShippoUseCase {
       link: {
         saleorOrderId: input.order.id,
         externalOrderId,
+        shippoOrderId: shippoOrderId ?? "",
         shippoTransactionId: objectId,
         channelSlug: input.order.channelSlug,
       },
     });
 
-    const metaResult = await gateway.writePrivateMetadata(input.order.id, [
+    const metaEntries: Array<{ key: MetadataKeyValue; value: string }> = [
       { key: MetadataKeys.shippoExternalOrderId, value: externalOrderId },
       { key: MetadataKeys.shippoTransactionId, value: objectId },
       { key: MetadataKeys.shippoStatus, value: status.toLowerCase() },
       { key: MetadataKeys.shippoLastSyncAt, value: new Date().toISOString() },
-    ]);
+    ];
+
+    if (shippoOrderId) {
+      metaEntries.push({ key: MetadataKeys.shippoOrderId, value: shippoOrderId });
+    }
+
+    const metaResult = await gateway.writePrivateMetadata(input.order.id, metaEntries);
 
     if (metaResult.isErr()) {
       return err(
@@ -317,6 +460,6 @@ export class PushOrderToShippoUseCase {
       }
     }
 
-    return ok({ externalOrderId, shippoTransactionId: objectId });
+    return ok({ externalOrderId, shippoOrderId, shippoTransactionId: objectId });
   }
 }
