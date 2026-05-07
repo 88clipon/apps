@@ -18,12 +18,6 @@ fragment ShippingListMethodsCheckoutLines on CheckoutLine {
       }
     }
   }
-  totalPrice {
-    gross {
-      amount
-      currency
-    }
-  }
 }
 
 fragment ShippingListMethodsCheckout on Checkout {
@@ -31,12 +25,7 @@ fragment ShippingListMethodsCheckout on Checkout {
   channel {
     id
     slug
-  }
-  totalPrice {
-    gross {
-      amount
-      currency
-    }
+    currencyCode
   }
   shippingAddress {
     ...AddressFragment

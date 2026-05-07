@@ -16,7 +16,7 @@ export default [
   },
   {
     name: "saleor-app-shippo/override-no-process-env",
-    files: ["next.config.ts", "src/lib/env.ts"],
+    files: ["next.config.ts", "src/lib/env.ts", "src/instrumentation.ts"],
     rules: {
       "n/no-process-env": "off",
     },

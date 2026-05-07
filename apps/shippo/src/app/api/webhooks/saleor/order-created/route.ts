@@ -1,6 +1,6 @@
 import { captureException } from "@sentry/nextjs";
 
-import type { OrderCreatedSubscription } from "@/generated/graphql";
+import type { OrderForShippoFragment } from "@/generated/graphql";
 import { createAuthenticatedGraphQLClient } from "@/lib/graphql-client";
 import { createLogger } from "@/lib/logger";
 import { withLoggerContext } from "@/lib/logger-context";
@@ -14,6 +14,16 @@ import { PushOrderToShippoUseCase } from "@/modules/use-cases/push-order-to-ship
 import { orderCreatedWebhookDefinition } from "./webhook-definition";
 
 const logger = createLogger("OrderCreated route");
+
+function getOrderFromOrderCreatedPayload(payload: unknown): OrderForShippoFragment | undefined {
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+
+  const top = payload as { order?: OrderForShippoFragment; event?: { order?: OrderForShippoFragment } };
+
+  return top.order ?? top.event?.order;
+}
 
 const useCase = new PushOrderToShippoUseCase({
   configRepo: appConfigRepoImpl,
@@ -33,11 +43,22 @@ const handler = orderCreatedWebhookDefinition.createHandler(async (_req, ctx) =>
       return Response.json({ ok: false }, { status: 400 });
     }
 
-    const event = ctx.payload.event as OrderCreatedSubscription["event"];
-    const order = event && "order" in event ? event.order : undefined;
+    const order = getOrderFromOrderCreatedPayload(ctx.payload);
+
+    logger.info("ORDER_CREATED received", {
+      hasOrder: Boolean(order),
+      orderId: order?.id ?? null,
+      orderNumber: order?.number ?? null,
+      payloadTopKeys:
+        ctx.payload && typeof ctx.payload === "object"
+          ? Object.keys(ctx.payload as object)
+          : [],
+    });
 
     if (!order) {
-      logger.warn("No order payload");
+      logger.warn("No order in webhook payload", {
+        topKeys: ctx.payload && typeof ctx.payload === "object" ? Object.keys(ctx.payload as object) : [],
+      });
 
       return Response.json({ ok: true }, { status: 200 });
     }

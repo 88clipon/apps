@@ -76,12 +76,45 @@ export type PushOrderInput = {
 const buildExternalOrderId = (orderId: string, orderNumber: string) =>
   `saleor-${orderNumber}-${orderId.slice(-8)}`;
 
-/** Saleor may return a global ID; the app-injected rate token still contains `shippo-`. */
-export const extractShippoRateObjectId = (saleorShippingMethodId: string | null | undefined) => {
-  if (!saleorShippingMethodId) return null;
-  const match = saleorShippingMethodId.match(/shippo-([a-f0-9]+)/i);
+const SHIPPO_RATE_IN_ID = /shippo-([a-f0-9]+)/i;
+
+const extractFromString = (s: string): string | null => {
+  const match = s.match(SHIPPO_RATE_IN_ID);
 
   return match?.[1] ?? null;
+};
+
+/**
+ * Saleor stores app shipping method ids as base64(`app:<app id or identifier>:shippo-<rateObjectId>`).
+ * GraphQL exposes that string as `deliveryMethod.id`; we need the Shippo rate object_id for purchase.
+ */
+export const extractShippoRateObjectId = (saleorShippingMethodId: string | null | undefined) => {
+  if (!saleorShippingMethodId) return null;
+
+  const direct = extractFromString(saleorShippingMethodId);
+
+  if (direct) {
+    return direct;
+  }
+
+  try {
+    const decoded = Buffer.from(saleorShippingMethodId, "base64").toString("utf8");
+    const fromDecoded = extractFromString(decoded);
+
+    if (fromDecoded) {
+      return fromDecoded;
+    }
+
+    const parts = decoded.split(":");
+
+    if (parts.length >= 3 && parts[0] === "app") {
+      return extractFromString(parts.slice(2).join(":"));
+    }
+  } catch {
+    // not valid base64
+  }
+
+  return null;
 };
 
 export class PushOrderToShippoUseCase {
@@ -132,6 +165,14 @@ export class PushOrderToShippoUseCase {
 
     const gateway = this.deps.buildSaleorGateway(auth);
     const rateObjectId = extractShippoRateObjectId(input.order.shippingMethodId);
+
+    logger.info("Pushing order to Shippo", {
+      orderId: input.order.id,
+      channelSlug: input.order.channelSlug,
+      autoPurchaseLabel: config.autoPurchaseLabel,
+      shippingMethodId: input.order.shippingMethodId,
+      rateObjectIdResolved: Boolean(rateObjectId),
+    });
 
     if (!config.autoPurchaseLabel) {
       logger.info("autoPurchaseLabel disabled; writing linkage metadata only", {

@@ -209,12 +209,31 @@ export class ListShippingRatesUseCase {
 
     logger.info("Shippo returned rates", {
       count: result.value.rates.length,
+      shipmentStatus: result.value.status,
+      shipmentMessages: result.value.messages,
       rates: result.value.rates.map((r) => {
         const picked = pickPriceForCheckout(r, input.checkoutCurrency);
 
         return `${r.provider}/${r.servicelevel.token}=${picked ? `${picked.amount}${picked.currency}` : `unpriced(${r.currency}/${r.currency_local ?? "?"})`}`;
       }),
     });
+
+    if (result.value.rates.length === 0) {
+      const isDomesticDest =
+        input.shippingAddress.countryCode.toUpperCase() === config.originAddress.country.toUpperCase();
+
+      logger.warn("Shippo returned 0 rates", {
+        isDomestic: isDomesticDest,
+        destinationCountry: input.shippingAddress.countryCode,
+        postalCode: input.shippingAddress.postalCode,
+        shipmentStatus: result.value.status,
+        shipmentMessages: result.value.messages,
+        weightOunces: weightBucket,
+        hint: isDomesticDest
+          ? "Check Shippo carrier accounts and origin address."
+          : "Most likely no international carrier accounts (UPS Worldwide / FedEx Intl / DHL Express) are enabled in Shippo, or the address requires customs declarations.",
+      });
+    }
 
     await this.deps.rateCache.set(cacheKey, {
       rates: [...result.value.rates],
@@ -266,20 +285,39 @@ export class ListShippingRatesUseCase {
       });
     }
 
-    return priced
-      .filter(({ rate: r }) => {
-        if (!serviceAllowlist || serviceAllowlist.length === 0) return true;
-        const token = r.servicelevel.token.toLowerCase();
+    const applyAllowlist = priced.filter(({ rate: r }) => {
+      if (!serviceAllowlist || serviceAllowlist.length === 0) return true;
+      const token = r.servicelevel.token.toLowerCase();
 
-        return serviceAllowlist.some((allowed) => token === allowed.toLowerCase());
-      })
-      .map(({ rate: r, amount, currency }) => ({
-        id: `shippo-${r.object_id}`,
-        name: r.servicelevel.name,
-        amount: config.applyMarkup(amount),
-        currency,
-        maximum_delivery_days: r.estimated_days ?? undefined,
-        minimum_delivery_days: r.estimated_days ?? undefined,
-      }));
+      return serviceAllowlist.some((allowed) => token === allowed.toLowerCase());
+    });
+
+    let afterAllowlist = applyAllowlist;
+
+    if (
+      applyAllowlist.length === 0 &&
+      priced.length > 0 &&
+      serviceAllowlist &&
+      serviceAllowlist.length > 0
+    ) {
+      logger.warn(
+        "Service allowlist excluded all priced Shippo rates; returning all rates that matched checkout currency",
+        {
+          isDomestic,
+          destinationCountry,
+          allowlist: [...serviceAllowlist],
+        },
+      );
+      afterAllowlist = priced;
+    }
+
+    return afterAllowlist.map(({ rate: r, amount, currency }) => ({
+      id: `shippo-${r.object_id}`,
+      name: r.servicelevel.name,
+      amount: config.applyMarkup(amount),
+      currency,
+      maximum_delivery_days: r.estimated_days ?? undefined,
+      minimum_delivery_days: r.estimated_days ?? undefined,
+    }));
   }
 }

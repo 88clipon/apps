@@ -40,6 +40,12 @@ export type ShippoApiErrorInstance = InstanceType<
   (typeof ShippoApiError)[keyof typeof ShippoApiError]
 >;
 
+const shippoMessageSchema = z.object({
+  source: z.string().optional().nullable(),
+  code: z.string().optional().nullable(),
+  text: z.string().optional().nullable(),
+});
+
 const shippoRateSchema = z.object({
   object_id: z.string(),
   provider: z.string(),
@@ -56,14 +62,17 @@ const shippoRateSchema = z.object({
   estimated_days: z.number().optional().nullable(),
   arrives_by: z.string().optional().nullable(),
   duration_terms: z.string().optional().nullable(),
+  messages: z.array(shippoMessageSchema).optional().nullable(),
 });
 
 export type ShippoRate = z.infer<typeof shippoRateSchema>;
+export type ShippoMessage = z.infer<typeof shippoMessageSchema>;
 
 const shippoShipmentResponseSchema = z.object({
   object_id: z.string(),
   status: z.string(),
   rates: z.array(shippoRateSchema),
+  messages: z.array(shippoMessageSchema).optional().nullable(),
 });
 
 const carrierAccountsListSchema = z.object({
@@ -356,7 +365,12 @@ export class ShippoClient {
   async getRates(
     input: ShippoRateRequest,
     opts?: { timeoutMs?: number },
-  ): Promise<Result<{ rates: ShippoRate[] }, ShippoApiErrorInstance>> {
+  ): Promise<
+    Result<
+      { rates: ShippoRate[]; status: string; messages: ShippoMessage[] },
+      ShippoApiErrorInstance
+    >
+  > {
     const timeoutMs = opts?.timeoutMs ?? this.timeoutMs;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -454,7 +468,11 @@ export class ShippoClient {
         );
       }
 
-      return ok({ rates: result.data.rates });
+      return ok({
+        rates: result.data.rates,
+        status: result.data.status,
+        messages: result.data.messages ?? [],
+      });
     } catch (cause) {
       if ((cause as Error | undefined)?.name === "AbortError") {
         return err(

@@ -18,4 +18,11 @@ describe("extractShippoRateObjectId", () => {
     expect(extractShippoRateObjectId(null)).toBeNull();
     expect(extractShippoRateObjectId("fedex_ground")).toBeNull();
   });
+
+  it("parses Saleor app shipping id (base64 of app:identifier:shippo-…)", () => {
+    const raw = "app:377b902b:shippo-deadbeef1234567890abcdef12";
+    const encoded = Buffer.from(raw, "utf8").toString("base64");
+
+    expect(extractShippoRateObjectId(encoded)).toBe("deadbeef1234567890abcdef12");
+  });
 });
