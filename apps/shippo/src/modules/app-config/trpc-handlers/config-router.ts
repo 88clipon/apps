@@ -73,7 +73,56 @@ export const configRouter = router({
       const saleorApiUrl = unwrapSaleorApiUrl(ctx.saleorApiUrl);
 
       const configId = input.id ?? randomUUID();
-      const configResult = ShippoAppConfig.create({ ...input, id: configId });
+
+      // For edits, preserve existing secrets (token + webhook secret) when
+      // the user left the corresponding form field blank. The masked token
+      // shown in the UI isn't a real credential, so we never want to push
+      // it back as the actual value.
+      let shippoApiToken = input.shippoApiToken;
+      let webhookSecret = input.webhookSecret;
+      if (input.id) {
+        const rootResult = await appConfigRepoImpl.getRootConfig({
+          saleorApiUrl,
+          appId,
+        });
+
+        if (rootResult.isErr()) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: rootResult.error.message,
+          });
+        }
+
+        const existing = rootResult.value.configs.get(input.id);
+
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Configuration not found",
+          });
+        }
+
+        if (!shippoApiToken) {
+          shippoApiToken = existing.shippoApiToken;
+        }
+        if (!webhookSecret) {
+          webhookSecret = existing.webhookSecret;
+        }
+      }
+
+      if (!shippoApiToken) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Shippo API token is required",
+        });
+      }
+
+      const configResult = ShippoAppConfig.create({
+        ...input,
+        id: configId,
+        shippoApiToken,
+        webhookSecret,
+      });
 
       if (configResult.isErr()) {
         throw new TRPCError({ code: "BAD_REQUEST", message: configResult.error.message });
@@ -89,7 +138,7 @@ export const configRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: saved.error.message });
       }
 
-      logger.info("Config saved", { configId });
+      logger.info("Config saved", { configId, mode: input.id ? "update" : "create" });
 
       return { id: configId };
     }),

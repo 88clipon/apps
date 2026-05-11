@@ -7,20 +7,34 @@ import {
   rateMarkupSchema,
 } from "@/modules/app-config/domain/shippo-app-config";
 
-export const saveConfigInputSchema = z.object({
-  id: z.string().min(1).optional(),
-  name: z.string().min(1),
-  shippoApiToken: z.string().min(1, "Shippo API token is required"),
-  webhookSecret: z.string().optional().default(""),
-  autoPurchaseLabel: z.boolean().optional().default(false),
-  labelFileType: z.enum(["PDF", "PDF_4x6", "PNG", "ZPLII"]).optional().default("PDF_4x6"),
-  originAddress: originAddressSchema,
-  packageDefaults: packageDefaultsSchema,
-  domesticServices: z.array(z.string()).optional().default([]),
-  internationalServices: z.array(z.string()).optional().default([]),
-  rateMarkup: rateMarkupSchema,
-  emailsHandledBy: emailsHandledBySchema,
-});
+export const saveConfigInputSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    name: z.string().min(1),
+    // When `id` is set this is an EDIT — the field may be left blank and
+    // the existing token will be preserved server-side. For new configs the
+    // token is required; that check lives in the save handler so the schema
+    // itself stays simple to share with the UI form types.
+    shippoApiToken: z.string().optional().default(""),
+    webhookSecret: z.string().optional().default(""),
+    autoPurchaseLabel: z.boolean().optional().default(false),
+    labelFileType: z.enum(["PDF", "PDF_4x6", "PNG", "ZPLII"]).optional().default("PDF_4x6"),
+    originAddress: originAddressSchema,
+    packageDefaults: packageDefaultsSchema,
+    domesticServices: z.array(z.string()).optional().default([]),
+    internationalServices: z.array(z.string()).optional().default([]),
+    rateMarkup: rateMarkupSchema,
+    emailsHandledBy: emailsHandledBySchema,
+  })
+  .superRefine((value, ctx) => {
+    if (!value.id && !value.shippoApiToken) {
+      ctx.addIssue({
+        path: ["shippoApiToken"],
+        code: z.ZodIssueCode.custom,
+        message: "Shippo API token is required",
+      });
+    }
+  });
 export type SaveConfigInput = z.infer<typeof saveConfigInputSchema>;
 
 export const removeConfigInputSchema = z.object({

@@ -29,7 +29,7 @@ const emptyConfig = {
   packageDefaults: { weightOunces: 8 },
   domesticServicesRaw: "usps_priority_express",
   internationalServicesRaw: "usps_priority_mail_international,usps_first_class_package_international_service",
-  rateMarkup: { type: "none" as const, value: 0 },
+  rateMarkup: { type: "none" as "none" | "flat" | "percent", value: 0 },
   emailsHandledBy: "saleor" as "shippo" | "saleor",
 };
 
@@ -52,6 +52,45 @@ export const ConfigurationView = () => {
   const [notice, setNotice] = useState<string | null>(null);
 
   const existingConfigs = useMemo(() => configsQuery.data?.configs ?? [], [configsQuery.data]);
+
+  const isEditing = form.id !== undefined;
+
+  const startEditing = (cfg: (typeof existingConfigs)[number]) => {
+    setNotice(null);
+    setForm({
+      id: cfg.id,
+      name: cfg.name,
+      // Secrets are masked server-side and can't round-trip. Leave blank;
+      // the user can either re-paste a new token/secret or save with the
+      // field empty to keep the current one.
+      shippoApiToken: "",
+      webhookSecret: "",
+      autoPurchaseLabel: cfg.autoPurchaseLabel,
+      labelFileType: cfg.labelFileType,
+      originAddress: {
+        name: cfg.originAddress.name ?? "",
+        company: cfg.originAddress.company ?? "",
+        street1: cfg.originAddress.street1 ?? "",
+        street2: cfg.originAddress.street2 ?? "",
+        city: cfg.originAddress.city ?? "",
+        state: cfg.originAddress.state ?? "",
+        postalCode: cfg.originAddress.postalCode ?? "",
+        country: cfg.originAddress.country ?? "US",
+        phone: cfg.originAddress.phone ?? "",
+        email: cfg.originAddress.email ?? "",
+      },
+      packageDefaults: { weightOunces: cfg.packageDefaults.weightOunces },
+      domesticServicesRaw: cfg.domesticServices.join(", "),
+      internationalServicesRaw: cfg.internationalServices.join(", "),
+      rateMarkup: cfg.rateMarkup,
+      emailsHandledBy: cfg.emailsHandledBy,
+    });
+  };
+
+  const cancelEditing = () => {
+    setNotice(null);
+    setForm(emptyConfig);
+  };
 
   const handleSave = async () => {
     setNotice(null);
@@ -119,13 +158,22 @@ export const ConfigurationView = () => {
                 {cfg.webhookSecretConfigured ? "set" : "not set"}
               </Text>
             </Box>
-            <Button
-              variant="tertiary"
-              onClick={() => removeMutation.mutate({ configId: cfg.id })}
-              disabled={removeMutation.isLoading}
-            >
-              Remove
-            </Button>
+            <Box display="flex" flexDirection="row" gap={2}>
+              <Button
+                variant="secondary"
+                onClick={() => startEditing(cfg)}
+                disabled={saveMutation.isLoading || removeMutation.isLoading}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="tertiary"
+                onClick={() => removeMutation.mutate({ configId: cfg.id })}
+                disabled={removeMutation.isLoading || form.id === cfg.id}
+              >
+                Remove
+              </Button>
+            </Box>
           </Box>
         ))}
       </Box>
@@ -139,7 +187,14 @@ export const ConfigurationView = () => {
         borderStyle="solid"
         borderRadius={3}
       >
-        <Text size={6}>Add or update configuration</Text>
+        <Box display="flex" flexDirection="row" justifyContent="space-between" alignItems="center">
+          <Text size={6}>{isEditing ? `Edit configuration: ${form.name || "(unnamed)"}` : "Add configuration"}</Text>
+          {isEditing && (
+            <Button variant="tertiary" onClick={cancelEditing}>
+              Cancel edit
+            </Button>
+          )}
+        </Box>
 
         <Input
           label="Configuration name"
@@ -151,7 +206,11 @@ export const ConfigurationView = () => {
           type="password"
           value={form.shippoApiToken}
           onChange={(e) => setForm((f) => ({ ...f, shippoApiToken: e.target.value }))}
-          helperText="From goshippo.com → API. Used for rating, purchasing labels, and refunds."
+          helperText={
+            isEditing
+              ? "Leave blank to keep the existing token. Paste a new one to replace it."
+              : "From goshippo.com → API. Used for rating, purchasing labels, and refunds."
+          }
         />
 
         <TestConnectionPanel shippoApiToken={form.shippoApiToken} />
@@ -161,7 +220,11 @@ export const ConfigurationView = () => {
           type="password"
           value={form.webhookSecret}
           onChange={(e) => setForm((f) => ({ ...f, webhookSecret: e.target.value }))}
-          helperText="If Shippo provides HMAC for your account, paste the secret here to verify Shippo-Auth-Signature."
+          helperText={
+            isEditing
+              ? "Leave blank to keep the existing secret. Paste a new one to replace it."
+              : "If Shippo provides HMAC for your account, paste the secret here to verify Shippo-Auth-Signature."
+          }
         />
 
         <Select
@@ -294,7 +357,11 @@ export const ConfigurationView = () => {
         />
 
         <Button onClick={handleSave} disabled={saveMutation.isLoading}>
-          {saveMutation.isLoading ? "Saving..." : "Save configuration"}
+          {saveMutation.isLoading
+            ? "Saving..."
+            : isEditing
+              ? "Save changes"
+              : "Save configuration"}
         </Button>
 
         {notice && <Text>{notice}</Text>}
