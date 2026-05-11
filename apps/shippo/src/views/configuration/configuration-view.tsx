@@ -60,9 +60,11 @@ export const ConfigurationView = () => {
     setForm({
       id: cfg.id,
       name: cfg.name,
-      // Secrets are masked server-side and can't round-trip. Leave blank;
-      // the user can either re-paste a new token/secret or save with the
-      // field empty to keep the current one.
+      /*
+       * Secrets are masked server-side and can't round-trip. Leave blank;
+       * the user can either re-paste a new token/secret or save with the
+       * field empty to keep the current one.
+       */
       shippoApiToken: "",
       webhookSecret: "",
       autoPurchaseLabel: cfg.autoPurchaseLabel,

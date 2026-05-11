@@ -74,12 +74,15 @@ export const configRouter = router({
 
       const configId = input.id ?? randomUUID();
 
-      // For edits, preserve existing secrets (token + webhook secret) when
-      // the user left the corresponding form field blank. The masked token
-      // shown in the UI isn't a real credential, so we never want to push
-      // it back as the actual value.
+      /*
+       * For edits, preserve existing secrets (token + webhook secret) when
+       * the user left the corresponding form field blank. The masked token
+       * shown in the UI isn't a real credential, so we never want to push
+       * it back as the actual value.
+       */
       let shippoApiToken = input.shippoApiToken;
       let webhookSecret = input.webhookSecret;
+
       if (input.id) {
         const rootResult = await appConfigRepoImpl.getRootConfig({
           saleorApiUrl,

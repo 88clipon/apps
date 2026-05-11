@@ -11,10 +11,12 @@ export const saveConfigInputSchema = z
   .object({
     id: z.string().min(1).optional(),
     name: z.string().min(1),
-    // When `id` is set this is an EDIT — the field may be left blank and
-    // the existing token will be preserved server-side. For new configs the
-    // token is required; that check lives in the save handler so the schema
-    // itself stays simple to share with the UI form types.
+    /*
+     * When `id` is set this is an EDIT — the field may be left blank and
+     * the existing token will be preserved server-side. For new configs the
+     * token is required; that check lives in the save handler so the schema
+     * itself stays simple to share with the UI form types.
+     */
     shippoApiToken: z.string().optional().default(""),
     webhookSecret: z.string().optional().default(""),
     autoPurchaseLabel: z.boolean().optional().default(false),
