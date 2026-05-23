@@ -173,7 +173,7 @@ describe("mergeBuckets", () => {
       },
     ]);
 
-    expect(out).toEqual([
+    expect(out).toStrictEqual([
       {
         serviceToken: "usps_first_class",
         name: "USPS First Class",
@@ -246,7 +246,7 @@ describe("mergeBuckets", () => {
       { kind: "free" },
     ]);
 
-    expect(out).toEqual([
+    expect(out).toStrictEqual([
       expect.objectContaining({ serviceToken: "usps_priority", amount: 9.88 }),
     ]);
   });
@@ -268,7 +268,7 @@ describe("ListShippingRatesUseCase", () => {
     const items = result._unsafeUnwrap();
 
     // Two fixed methods, names sourced from the service tokens.
-    expect(items.map((i) => i.id).sort()).toEqual([
+    expect(items.map((i) => i.id).sort()).toStrictEqual([
       "method-usps_first_class",
       "method-usps_priority",
     ]);
@@ -338,7 +338,7 @@ describe("ListShippingRatesUseCase", () => {
 
     const items = result._unsafeUnwrap();
 
-    expect(items.map((i) => i.id).sort()).toEqual([
+    expect(items.map((i) => i.id).sort()).toStrictEqual([
       "method-usps_first_class",
       "method-usps_priority",
     ]);
@@ -358,7 +358,7 @@ describe("ListShippingRatesUseCase", () => {
 
     const items = result._unsafeUnwrap();
 
-    expect(items).toEqual([]);
+    expect(items).toStrictEqual([]);
   });
 
   it("falls back to legacy whole-cart Shippo path for products without a category rule", async () => {
