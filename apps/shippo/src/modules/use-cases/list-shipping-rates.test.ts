@@ -66,6 +66,7 @@ const clipOnRule = ShippingCategoryRule.create({
   domesticMethods: [
     {
       serviceToken: "usps_first_class",
+      displayName: "USPS First Class - 88Clipon Discount",
       mode: "fixed",
       fixedAmount: 5.88,
       minTransitDays: 1,
@@ -280,6 +281,12 @@ describe("ListShippingRatesUseCase", () => {
     // Lead-time stamped on: clip-on FC minDays(1) + lead.min(1)=2, max(5)+lead.max(2)=7.
     expect(fc.minimum_delivery_days).toBe(2);
     expect(fc.maximum_delivery_days).toBe(7);
+    /*
+     * Custom displayName from the rule survives to the storefront; the other
+     * method has no override, so it falls back to a token-derived label.
+     */
+    expect(fc.name).toBe("USPS First Class - 88Clipon Discount");
+    expect(pri.name).toBe("USPS Priority");
   });
 
   it("returns single Free shipping method for a parts-only cart", async () => {

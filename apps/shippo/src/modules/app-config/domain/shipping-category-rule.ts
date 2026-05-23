@@ -11,6 +11,12 @@ import { BaseError } from "@/lib/errors";
 export const methodRuleSchema = z
   .object({
     serviceToken: z.string().min(1),
+    /**
+     * Optional merchant-friendly display name returned to the storefront. When
+     * blank we fall back to Shippo's `servicelevel.name` for live rates, and a
+     * pretty-printed version of the service token for fixed rates.
+     */
+    displayName: z.string().optional(),
     mode: z.enum(["fixed", "live"]),
     fixedAmount: z.number().nonnegative().optional(),
     minTransitDays: z.number().int().nonnegative(),

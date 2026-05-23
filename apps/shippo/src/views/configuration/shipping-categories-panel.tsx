@@ -22,6 +22,7 @@ type RuleFormState = {
 
 type MethodRowState = {
   serviceToken: string;
+  displayName: string;
   mode: Mode;
   fixedAmount: string;
   minTransitDays: string;
@@ -30,6 +31,7 @@ type MethodRowState = {
 
 const emptyMethodRow = (): MethodRowState => ({
   serviceToken: "",
+  displayName: "",
   mode: "live",
   fixedAmount: "",
   minTransitDays: "1",
@@ -392,7 +394,7 @@ function MethodEditor({
         <Box
           key={idx}
           display="grid"
-          __gridTemplateColumns="2fr 1fr 1fr 1fr 1fr auto"
+          __gridTemplateColumns="1.5fr 2fr 1fr 1fr 1fr 1fr auto"
           gap={2}
           alignItems="end"
         >
@@ -401,6 +403,12 @@ function MethodEditor({
             value={m.serviceToken}
             list={`shippo-service-tokens-${title.replace(/\s/g, "")}`}
             onChange={(e) => update(idx, { serviceToken: e.target.value })}
+          />
+          <Input
+            label="Display name (optional)"
+            value={m.displayName}
+            placeholder="Auto from service token"
+            onChange={(e) => update(idx, { displayName: e.target.value })}
           />
           <Select
             label="Mode"
@@ -452,6 +460,7 @@ function MethodEditor({
 function methodRuleToRow(m: MethodRule): MethodRowState {
   return {
     serviceToken: m.serviceToken,
+    displayName: m.displayName ?? "",
     mode: m.mode,
     fixedAmount: m.fixedAmount === undefined ? "" : String(m.fixedAmount),
     minTransitDays: String(m.minTransitDays),
@@ -468,6 +477,7 @@ function rowToMethodRule(row: MethodRowState): MethodRule | null {
     minTransitDays,
     parseInt(row.maxTransitDays, 10) || 0,
   );
+  const displayName = row.displayName.trim() || undefined;
 
   if (row.mode === "fixed") {
     const fixedAmount = Number(row.fixedAmount);
@@ -476,6 +486,7 @@ function rowToMethodRule(row: MethodRowState): MethodRule | null {
 
     return {
       serviceToken: token,
+      displayName,
       mode: "fixed",
       fixedAmount,
       minTransitDays,
@@ -485,6 +496,7 @@ function rowToMethodRule(row: MethodRowState): MethodRule | null {
 
   return {
     serviceToken: token,
+    displayName,
     mode: "live",
     minTransitDays,
     maxTransitDays,

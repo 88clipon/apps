@@ -304,7 +304,7 @@ export class ListShippingRatesUseCase {
         if (def.fixedAmount === undefined) continue;
         methods.push({
           serviceToken: def.serviceToken,
-          name: prettyMethodName(def.serviceToken),
+          name: def.displayName?.trim() || prettyMethodName(def.serviceToken),
           amount: def.fixedAmount,
           currency: CHECKOUT_SHIPPING_CURRENCY,
           minDays: def.minTransitDays,
@@ -330,7 +330,10 @@ export class ListShippingRatesUseCase {
       if (!picked) continue;
       methods.push({
         serviceToken: def.serviceToken,
-        name: match.servicelevel.name || prettyMethodName(def.serviceToken),
+        name:
+          def.displayName?.trim() ||
+          match.servicelevel.name ||
+          prettyMethodName(def.serviceToken),
         amount: picked.amount,
         currency: picked.currency,
         minDays: def.minTransitDays,
@@ -568,11 +571,21 @@ export function mergeBuckets(results: readonly BucketResult[]): BucketMethod[] {
 
     if (perBucket.length === 0) continue;
 
+    /*
+     * The bucket whose price is being charged also supplies the display name —
+     * that way a per-rule "USPS First Class - 88Clipon Discount" label survives
+     * when its bucket wins on price across a mixed cart.
+     */
+    const winner = perBucket.reduce(
+      (best, m) => (m.amount > best.amount ? m : best),
+      perBucket[0],
+    );
+
     merged.push({
-      serviceToken: perBucket[0].serviceToken,
-      name: perBucket[0].name,
-      amount: perBucket.reduce((a, m) => Math.max(a, m.amount), 0),
-      currency: perBucket[0].currency,
+      serviceToken: winner.serviceToken,
+      name: winner.name,
+      amount: winner.amount,
+      currency: winner.currency,
       minDays: perBucket.reduce((a, m) => Math.max(a, m.minDays), 0),
       maxDays: perBucket.reduce((a, m) => Math.max(a, m.maxDays), 0),
     });
