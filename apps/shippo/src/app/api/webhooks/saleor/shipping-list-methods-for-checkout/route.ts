@@ -62,14 +62,24 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
       return Response.json([], { status: 200 });
     }
 
-    const lines = checkout.lines.map((l) => ({
+    const weightLines = checkout.lines.map((l) => ({
       quantity: l.quantity,
       unitWeightValue:
         l.variant.weight?.value ?? l.variant.product?.weight?.value ?? null,
       unitWeightUnit: l.variant.weight?.unit ?? l.variant.product?.weight?.unit ?? null,
     }));
 
-    const totalWeightOunces = computeTotalWeightOunces(lines, 8);
+    const totalWeightOunces = computeTotalWeightOunces(weightLines, 8);
+
+    /*
+     * Each line carries its product's category slug so the use case can route
+     * it through the matching ShippingCategoryRule (or fall back to the
+     * legacy whole-cart parcel for products without a category rule).
+     */
+    const cartLines = checkout.lines.map((l) => ({
+      quantity: l.quantity,
+      categorySlug: l.variant.product?.category?.slug ?? null,
+    }));
 
     const result = await useCase.execute({
       saleorApiUrl: saleorApiUrlResult.value,
@@ -89,6 +99,7 @@ const handler = shippingListMethodsForCheckoutWebhookDefinition.createHandler(as
             phone: checkout.shippingAddress.phone,
           }
         : null,
+      lines: cartLines,
       totalWeightOunces,
     });
 

@@ -1,6 +1,7 @@
 import { ok, Result } from "neverthrow";
 
 import { AppRootConfig } from "@/modules/app-config/domain/app-root-config";
+import { ShippingCategoryRule } from "@/modules/app-config/domain/shipping-category-rule";
 import { ShippoAppConfig } from "@/modules/app-config/domain/shippo-app-config";
 
 import type {
@@ -16,6 +17,7 @@ type InstallationKey = `${string}#${string}`;
 type InstallationState = {
   configs: Map<string, ShippoAppConfig>;
   channelMapping: Map<string, string>;
+  categoryRules: Map<string, ShippingCategoryRule>;
 };
 
 const keyOf = (a: BaseAccess): InstallationKey => `${a.saleorApiUrl}#${a.appId}`;
@@ -32,7 +34,11 @@ export class AppConfigRepoMemory implements AppConfigRepo {
     let existing = this.state.get(k);
 
     if (!existing) {
-      existing = { configs: new Map(), channelMapping: new Map() };
+      existing = {
+        configs: new Map(),
+        channelMapping: new Map(),
+        categoryRules: new Map(),
+      };
       this.state.set(k, existing);
     }
 
@@ -75,7 +81,13 @@ export class AppConfigRepoMemory implements AppConfigRepo {
   ): Promise<Result<AppRootConfig, InstanceType<typeof AppConfigRepoError.FailureFetching>>> {
     const state = this.getOrCreate(access);
 
-    return ok(new AppRootConfig(new Map(state.configs), new Map(state.channelMapping)));
+    return ok(
+      new AppRootConfig(
+        new Map(state.configs),
+        new Map(state.channelMapping),
+        new Map(state.categoryRules),
+      ),
+    );
   }
 
   async removeConfig(
@@ -103,6 +115,32 @@ export class AppConfigRepoMemory implements AppConfigRepo {
     } else {
       state.channelMapping.set(data.channelSlug, data.configId);
     }
+
+    return ok(undefined);
+  }
+
+  async upsertCategoryRule(args: {
+    rule: ShippingCategoryRule;
+    saleorApiUrl: BaseAccess["saleorApiUrl"];
+    appId: string;
+  }): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureSaving>>> {
+    const state = this.getOrCreate({
+      saleorApiUrl: args.saleorApiUrl,
+      appId: args.appId,
+    });
+
+    state.categoryRules.set(args.rule.categorySlug, args.rule);
+
+    return ok(undefined);
+  }
+
+  async removeCategoryRule(
+    access: BaseAccess,
+    data: { categorySlug: string },
+  ): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureRemoving>>> {
+    const state = this.getOrCreate(access);
+
+    state.categoryRules.delete(data.categorySlug);
 
     return ok(undefined);
   }

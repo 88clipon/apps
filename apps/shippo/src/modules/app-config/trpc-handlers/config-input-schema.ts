@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+import { shippingCategoryRuleSchema } from "@/modules/app-config/domain/shipping-category-rule";
 import {
   emailsHandledBySchema,
+  manufacturingLeadTimeSchema,
   originAddressSchema,
   packageDefaultsSchema,
   rateMarkupSchema,
@@ -27,6 +29,7 @@ export const saveConfigInputSchema = z
     internationalServices: z.array(z.string()).optional().default([]),
     rateMarkup: rateMarkupSchema,
     emailsHandledBy: emailsHandledBySchema,
+    manufacturingLeadTimeDays: manufacturingLeadTimeSchema,
   })
   .superRefine((value, ctx) => {
     if (!value.id && !value.shippoApiToken) {
@@ -50,4 +53,11 @@ export const updateMappingInputSchema = z.object({
 
 export const testConnectionInputSchema = z.object({
   shippoApiToken: z.string().min(1),
+});
+
+export const upsertCategoryRuleInputSchema = shippingCategoryRuleSchema;
+export type UpsertCategoryRuleInput = z.input<typeof upsertCategoryRuleInputSchema>;
+
+export const removeCategoryRuleInputSchema = z.object({
+  categorySlug: z.string().min(1),
 });

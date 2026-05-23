@@ -4,6 +4,10 @@ import { err, ok, Result } from "neverthrow";
 import { createLogger } from "@/lib/logger";
 import { AppRootConfig } from "@/modules/app-config/domain/app-root-config";
 import {
+  ShippingCategoryRule,
+  shippingCategoryRuleSchema,
+} from "@/modules/app-config/domain/shipping-category-rule";
+import {
   ShippoAppConfig,
   shippoAppConfigSchema,
 } from "@/modules/app-config/domain/shippo-app-config";
@@ -21,9 +25,11 @@ const logger = createLogger("AppConfigRepoDynamoDB");
 
 const CONFIG_SK_PREFIX = "config#";
 const CHANNEL_SK_PREFIX = "channel#";
+const CATEGORY_RULE_SK_PREFIX = "categoryRule#";
 
 const toConfigSk = (configId: string) => `${CONFIG_SK_PREFIX}${configId}`;
 const toChannelSk = (channelSlug: string) => `${CHANNEL_SK_PREFIX}${channelSlug}`;
+const toCategoryRuleSk = (categorySlug: string) => `${CATEGORY_RULE_SK_PREFIX}${categorySlug}`;
 
 /**
  * DynamoDB-backed AppConfigRepo. Uses the same PK/SK layout as the Stripe app
@@ -64,6 +70,7 @@ export class AppConfigRepoDynamoDB implements AppConfigRepo {
               internationalServices: args.config.internationalServices,
               rateMarkup: args.config.rateMarkup,
               emailsHandledBy: args.config.emailsHandledBy,
+              manufacturingLeadTimeDays: args.config.manufacturingLeadTimeDays,
             },
           },
         }),
@@ -149,6 +156,7 @@ export class AppConfigRepoDynamoDB implements AppConfigRepo {
 
       const configs = new Map<string, ShippoAppConfig>();
       const channelMapping = new Map<string, string>();
+      const categoryRules = new Map<string, ShippingCategoryRule>();
 
       for (const item of items.Items ?? []) {
         const sk = item.SK as string;
@@ -167,10 +175,26 @@ export class AppConfigRepoDynamoDB implements AppConfigRepo {
           const configId = item.configId as string | undefined;
 
           if (configId) channelMapping.set(slug, configId);
+        } else if (sk.startsWith(CATEGORY_RULE_SK_PREFIX)) {
+          if (!item.rule) continue;
+          const parsed = shippingCategoryRuleSchema.safeParse(item.rule);
+
+          if (!parsed.success) {
+            logger.warn("Stored category rule failed validation", {
+              issues: parsed.error.issues,
+              sk,
+            });
+            continue;
+          }
+          const created = ShippingCategoryRule.create(parsed.data);
+
+          if (created.isOk()) {
+            categoryRules.set(created.value.categorySlug, created.value);
+          }
         }
       }
 
-      return ok(new AppRootConfig(configs, channelMapping));
+      return ok(new AppRootConfig(configs, channelMapping, categoryRules));
     } catch (cause) {
       logger.error("Failed to fetch root config", { error: cause });
 
@@ -225,6 +249,60 @@ export class AppConfigRepoDynamoDB implements AppConfigRepo {
 
       return err(
         new AppConfigRepoError.FailureSaving("Failed to update channel mapping", { cause }),
+      );
+    }
+  }
+
+  async upsertCategoryRule(args: {
+    rule: ShippingCategoryRule;
+    saleorApiUrl: BaseAccess["saleorApiUrl"];
+    appId: string;
+  }): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureSaving>>> {
+    try {
+      await this.documentClient.send(
+        new PutCommand({
+          TableName: this.table.getName(),
+          Item: {
+            PK: this.pk({ saleorApiUrl: args.saleorApiUrl, appId: args.appId }),
+            SK: toCategoryRuleSk(args.rule.categorySlug),
+            rule: args.rule.toJSON(),
+          },
+        }),
+      );
+
+      return ok(undefined);
+    } catch (cause) {
+      logger.error("Failed to save category rule", { error: cause });
+
+      return err(
+        new AppConfigRepoError.FailureSaving("Failed to save category rule", { cause }),
+      );
+    }
+  }
+
+  async removeCategoryRule(
+    access: BaseAccess,
+    data: { categorySlug: string },
+  ): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureRemoving>>> {
+    try {
+      await this.documentClient.send(
+        new PutCommand({
+          TableName: this.table.getName(),
+          Item: {
+            PK: this.pk(access),
+            SK: toCategoryRuleSk(data.categorySlug),
+            rule: null,
+            deletedAt: new Date().toISOString(),
+          },
+        }),
+      );
+
+      return ok(undefined);
+    } catch (cause) {
+      logger.error("Failed to remove category rule", { error: cause });
+
+      return err(
+        new AppConfigRepoError.FailureRemoving("Failed to remove category rule", { cause }),
       );
     }
   }

@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 
 import { TRPCError } from "@trpc/server";
 
+import { createAuthenticatedGraphQLClient } from "@/lib/graphql-client";
 import { createLogger } from "@/lib/logger";
+import { ShippingCategoryRule } from "@/modules/app-config/domain/shipping-category-rule";
 import { ShippoAppConfig, ShippoAppFrontendConfig } from "@/modules/app-config/domain/shippo-app-config";
 import { appConfigRepoImpl } from "@/modules/app-config/repositories/app-config-repo-impl";
 import { createSaleorApiUrl } from "@/modules/saleor/saleor-api-url";
@@ -11,10 +13,12 @@ import { protectedClientProcedure } from "@/modules/trpc/protected-client-proced
 import { router } from "@/modules/trpc/trpc-server";
 
 import {
+  removeCategoryRuleInputSchema,
   removeConfigInputSchema,
   saveConfigInputSchema,
   testConnectionInputSchema,
   updateMappingInputSchema,
+  upsertCategoryRuleInputSchema,
 } from "./config-input-schema";
 
 const logger = createLogger("ConfigRouter");
@@ -62,6 +66,9 @@ export const configRouter = router({
           ShippoAppFrontendConfig.fromConfig(c),
         ),
         channelMapping: Object.fromEntries(rootResult.value.channelMapping),
+        categoryRules: Array.from(rootResult.value.categoryRules.values()).map((r) =>
+          r.toJSON(),
+        ),
       };
     }),
 
@@ -200,5 +207,111 @@ export const configRouter = router({
       }
 
       return { ok: true as const, carrierAccountsApprox: result.value.count };
+    }),
+
+  /**
+   * Shipping-by-category rules: list / upsert / delete one rule per Saleor
+   * category slug. Used by the "Shipping by category" panel in the config UI.
+   */
+  upsertCategoryRule: protectedClientProcedure
+    .meta({ requiredClientPermissions: ["MANAGE_APPS"] })
+    .input(upsertCategoryRuleInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { appId } = requireInstalledAppContext(ctx);
+      const saleorApiUrl = unwrapSaleorApiUrl(ctx.saleorApiUrl);
+
+      const ruleResult = ShippingCategoryRule.create(input);
+
+      if (ruleResult.isErr()) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: ruleResult.error.message });
+      }
+
+      const saved = await appConfigRepoImpl.upsertCategoryRule({
+        rule: ruleResult.value,
+        saleorApiUrl,
+        appId,
+      });
+
+      if (saved.isErr()) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: saved.error.message });
+      }
+
+      logger.info("Category rule saved", { slug: ruleResult.value.categorySlug });
+
+      return { ok: true as const };
+    }),
+
+  removeCategoryRule: protectedClientProcedure
+    .meta({ requiredClientPermissions: ["MANAGE_APPS"] })
+    .input(removeCategoryRuleInputSchema)
+    .mutation(async ({ input, ctx }) => {
+      const { appId } = requireInstalledAppContext(ctx);
+      const saleorApiUrl = unwrapSaleorApiUrl(ctx.saleorApiUrl);
+
+      const r = await appConfigRepoImpl.removeCategoryRule(
+        { saleorApiUrl, appId },
+        { categorySlug: input.categorySlug },
+      );
+
+      if (r.isErr()) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: r.error.message });
+      }
+
+      return { ok: true as const };
+    }),
+
+  /**
+   * Lists the Saleor instance's product categories so the config dialog can
+   * offer a dropdown rather than free-typing slugs.
+   */
+  listSaleorCategories: protectedClientProcedure
+    .meta({ requiredClientPermissions: ["MANAGE_APPS"] })
+    .query(async ({ ctx }) => {
+      const { appToken, saleorApiUrl } = ctx as {
+        appToken: string;
+        saleorApiUrl: string;
+      };
+
+      const client = createAuthenticatedGraphQLClient({
+        saleorApiUrl,
+        token: appToken,
+      });
+
+      /*
+       * Pull up to 100 categories; for stores with deeper trees this can be
+       * extended with cursor pagination, but 100 is typical for niche stores.
+       */
+      const query = /* GraphQL */ `
+        query ListCategories {
+          categories(first: 100) {
+            edges {
+              node {
+                id
+                name
+                slug
+                level
+              }
+            }
+          }
+        }
+      `;
+
+      const res = await client
+        .query<{
+          categories?: {
+            edges: Array<{ node: { id: string; name: string; slug: string; level: number } }>;
+          };
+        }>(query, {})
+        .toPromise();
+
+      if (res.error) {
+        logger.error("Failed to list Saleor categories", { error: res.error });
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to list Saleor categories",
+        });
+      }
+
+      return (res.data?.categories?.edges ?? []).map((e) => e.node);
     }),
 });

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { trpcClient } from "@/modules/trpc/trpc-client";
 
 import { ChannelMappingPanel } from "./channel-mapping-panel";
+import { ShippingCategoriesPanel } from "./shipping-categories-panel";
 import { TestConnectionPanel } from "./test-connection-panel";
 
 const emptyConfig = {
@@ -31,6 +32,7 @@ const emptyConfig = {
   internationalServicesRaw: "usps_priority_mail_international,usps_first_class_package_international_service",
   rateMarkup: { type: "none" as "none" | "flat" | "percent", value: 0 },
   emailsHandledBy: "saleor" as "shippo" | "saleor",
+  manufacturingLeadTimeDays: { min: 1, max: 2 },
 };
 
 const parseServiceList = (raw: string): string[] =>
@@ -86,6 +88,10 @@ export const ConfigurationView = () => {
       internationalServicesRaw: cfg.internationalServices.join(", "),
       rateMarkup: cfg.rateMarkup,
       emailsHandledBy: cfg.emailsHandledBy,
+      manufacturingLeadTimeDays: {
+        min: cfg.manufacturingLeadTimeDays?.min ?? 1,
+        max: cfg.manufacturingLeadTimeDays?.max ?? 2,
+      },
     });
   };
 
@@ -358,6 +364,42 @@ export const ConfigurationView = () => {
           ]}
         />
 
+        <Text size={5}>Manufacturing lead time</Text>
+        <Text size={2} color="default2">
+          Added to every shipping method&apos;s estimated delivery window. Use
+          1–2 working days for in-house fulfillment + label printing.
+        </Text>
+        <Box display="grid" __gridTemplateColumns="1fr 1fr" gap={3}>
+          <Input
+            label="Min lead time (days)"
+            type="number"
+            value={String(form.manufacturingLeadTimeDays.min)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                manufacturingLeadTimeDays: {
+                  ...f.manufacturingLeadTimeDays,
+                  min: Math.max(0, Number(e.target.value) || 0),
+                },
+              }))
+            }
+          />
+          <Input
+            label="Max lead time (days)"
+            type="number"
+            value={String(form.manufacturingLeadTimeDays.max)}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                manufacturingLeadTimeDays: {
+                  ...f.manufacturingLeadTimeDays,
+                  max: Math.max(0, Number(e.target.value) || 0),
+                },
+              }))
+            }
+          />
+        </Box>
+
         <Button onClick={handleSave} disabled={saveMutation.isLoading}>
           {saveMutation.isLoading
             ? "Saving..."
@@ -373,6 +415,47 @@ export const ConfigurationView = () => {
         configs={existingConfigs}
         mapping={configsQuery.data?.channelMapping ?? {}}
       />
+
+      <ShippingCategoriesPanelWrapper categoryRules={configsQuery.data?.categoryRules ?? []} />
     </Box>
   );
 };
+
+/**
+ * Local wrapper: fetches Saleor's category list once for the panel. Kept inline
+ * to avoid one more file for a two-line component.
+ */
+function ShippingCategoriesPanelWrapper({
+  categoryRules,
+}: {
+  categoryRules: ReadonlyArray<{
+    categorySlug: string;
+    displayName: string;
+    freeShipping: boolean;
+    weightOzPerUnit: number;
+    parcel?: { lengthIn: number; widthIn: number; heightIn: number };
+    domesticMethods: ReadonlyArray<{
+      serviceToken: string;
+      mode: "fixed" | "live";
+      fixedAmount?: number;
+      minTransitDays: number;
+      maxTransitDays: number;
+    }>;
+    internationalMethods: ReadonlyArray<{
+      serviceToken: string;
+      mode: "fixed" | "live";
+      fixedAmount?: number;
+      minTransitDays: number;
+      maxTransitDays: number;
+    }>;
+  }>;
+}) {
+  const saleorCategoriesQuery = trpcClient.config.listSaleorCategories.useQuery();
+
+  return (
+    <ShippingCategoriesPanel
+      rules={categoryRules}
+      saleorCategories={saleorCategoriesQuery.data ?? []}
+    />
+  );
+}

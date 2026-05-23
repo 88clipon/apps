@@ -16,6 +16,11 @@ export type RateCacheKey = {
   postalCode: string;
   /** Bucketed cart weight in ounces (rounded to nearest 4oz) to keep cache hits reasonable. */
   weightBucketOz: number;
+  /**
+   * Extra signature to keep per-category-bucket Shippo calls separate in the
+   * cache. Empty string for the legacy single-cart-parcel path.
+   */
+  bucketSignature?: string;
 };
 
 export type CachedRates = { rates: ShippoRate[]; expiresAt: number };
@@ -26,9 +31,13 @@ export interface RateCache {
 }
 
 const buildKey = (key: RateCacheKey): string => {
-  const stable = [key.channelSlug, key.country, key.postalCode, String(key.weightBucketOz)].join(
-    "|",
-  );
+  const stable = [
+    key.channelSlug,
+    key.country,
+    key.postalCode,
+    String(key.weightBucketOz),
+    key.bucketSignature ?? "",
+  ].join("|");
   const hash = crypto.createHash("sha1").update(stable).digest("hex").slice(0, 16);
 
   return `rate-cache#${hash}`;

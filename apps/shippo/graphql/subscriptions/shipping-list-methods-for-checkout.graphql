@@ -16,6 +16,11 @@ fragment ShippingListMethodsCheckoutLines on CheckoutLine {
         value
         unit
       }
+      category {
+        id
+        slug
+        name
+      }
     }
   }
 }

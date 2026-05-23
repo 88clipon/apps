@@ -2,6 +2,7 @@ import { Result } from "neverthrow";
 
 import { BaseError } from "@/lib/errors";
 import { AppRootConfig } from "@/modules/app-config/domain/app-root-config";
+import { ShippingCategoryRule } from "@/modules/app-config/domain/shipping-category-rule";
 import { ShippoAppConfig } from "@/modules/app-config/domain/shippo-app-config";
 import { SaleorApiUrl } from "@/modules/saleor/saleor-api-url";
 
@@ -57,4 +58,15 @@ export interface AppConfigRepo {
     access: BaseAccess,
     data: { channelSlug: string; configId: string | null },
   ): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureSaving>>>;
+
+  upsertCategoryRule(args: {
+    rule: ShippingCategoryRule;
+    saleorApiUrl: SaleorApiUrl;
+    appId: string;
+  }): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureSaving>>>;
+
+  removeCategoryRule(
+    access: BaseAccess,
+    data: { categorySlug: string },
+  ): Promise<Result<void, InstanceType<typeof AppConfigRepoError.FailureRemoving>>>;
 }

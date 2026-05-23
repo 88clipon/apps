@@ -44,6 +44,27 @@ export type RateMarkup = z.infer<typeof rateMarkupSchema>;
 export const emailsHandledBySchema = z.enum(["shippo", "saleor"]).default("saleor");
 export type EmailsHandledBy = z.infer<typeof emailsHandledBySchema>;
 
+/**
+ * Days added to every shipping method's transit window to account for
+ * in-house fulfillment / label printing before the parcel actually leaves.
+ */
+export const manufacturingLeadTimeSchema = z
+  .object({
+    min: z.number().int().nonnegative(),
+    max: z.number().int().nonnegative(),
+  })
+  .default({ min: 1, max: 2 })
+  .superRefine((value, ctx) => {
+    if (value.max < value.min) {
+      ctx.addIssue({
+        path: ["max"],
+        code: z.ZodIssueCode.custom,
+        message: "max must be >= min",
+      });
+    }
+  });
+export type ManufacturingLeadTime = z.infer<typeof manufacturingLeadTimeSchema>;
+
 export const shippoAppConfigSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -69,6 +90,7 @@ export const shippoAppConfigSchema = z.object({
   internationalServices: z.array(z.string()).optional().default([]),
   rateMarkup: rateMarkupSchema,
   emailsHandledBy: emailsHandledBySchema,
+  manufacturingLeadTimeDays: manufacturingLeadTimeSchema,
 });
 export type ShippoAppConfigInput = z.input<typeof shippoAppConfigSchema>;
 export type ShippoAppConfigFields = z.infer<typeof shippoAppConfigSchema>;
@@ -95,6 +117,7 @@ export class ShippoAppConfig {
   readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
+  readonly manufacturingLeadTimeDays: ManufacturingLeadTime;
 
   private constructor(fields: Required<ShippoAppConfigFields>) {
     this.id = fields.id;
@@ -109,6 +132,7 @@ export class ShippoAppConfig {
     this.internationalServices = fields.internationalServices;
     this.rateMarkup = fields.rateMarkup;
     this.emailsHandledBy = fields.emailsHandledBy;
+    this.manufacturingLeadTimeDays = fields.manufacturingLeadTimeDays;
   }
 
   static create(
@@ -155,6 +179,7 @@ export type ShippoAppFrontendConfigFields = {
   readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
+  readonly manufacturingLeadTimeDays: ManufacturingLeadTime;
 };
 
 export class ShippoAppFrontendConfig implements ShippoAppFrontendConfigFields {
@@ -170,6 +195,7 @@ export class ShippoAppFrontendConfig implements ShippoAppFrontendConfigFields {
   readonly internationalServices: readonly string[];
   readonly rateMarkup: RateMarkup;
   readonly emailsHandledBy: EmailsHandledBy;
+  readonly manufacturingLeadTimeDays: ManufacturingLeadTime;
 
   private constructor(fields: ShippoAppFrontendConfigFields) {
     this.id = fields.id;
@@ -184,6 +210,7 @@ export class ShippoAppFrontendConfig implements ShippoAppFrontendConfigFields {
     this.internationalServices = fields.internationalServices;
     this.rateMarkup = fields.rateMarkup;
     this.emailsHandledBy = fields.emailsHandledBy;
+    this.manufacturingLeadTimeDays = fields.manufacturingLeadTimeDays;
   }
 
   static fromConfig(c: ShippoAppConfig): ShippoAppFrontendConfig {
@@ -202,6 +229,7 @@ export class ShippoAppFrontendConfig implements ShippoAppFrontendConfigFields {
       internationalServices: c.internationalServices,
       rateMarkup: c.rateMarkup,
       emailsHandledBy: c.emailsHandledBy,
+      manufacturingLeadTimeDays: c.manufacturingLeadTimeDays,
     });
   }
 }
