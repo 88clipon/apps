@@ -1,0 +1,14 @@
+subscription AbandonedCartOrderCreated {
+  event {
+    ... on OrderCreated {
+      order {
+        id
+        checkoutId
+        userEmail
+        channel {
+          slug
+        }
+      }
+    }
+  }
+}

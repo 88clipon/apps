@@ -1,0 +1,9 @@
+# Use this file from Railway: Settings → Config-as-code → set path to
+# `apps/abandoned-cart/railway.toml` (repo root must be the pnpm workspace root
+# that contains `pnpm-workspace.yaml`, not this folder alone).
+#
+# Do not use the repo default `pnpm start` here: it runs `turbo run start` and
+# launches every Next.js app in the monorepo on the same PORT.
+
+[deploy]
+startCommand = "pnpm run start:abandoned-cart"
