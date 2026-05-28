@@ -1,9 +1,0 @@
-subscription CheckoutUpdated {
-  event {
-    ... on CheckoutUpdated {
-      checkout {
-        ...AbandonedCheckout
-      }
-    }
-  }
-}
