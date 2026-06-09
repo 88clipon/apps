@@ -1,10 +1,8 @@
 # Railway: Settings → Config-as-code → path `apps/abandoned-cart/railway.toml`.
 #
-# With this config-as-code path, Railpack roots the *runner* image at this app
-# folder — `/app` in the container is the app itself (no workspace root, no root
-# `package.json`). So the start command must be the app's OWN start script, run
-# from the app dir. `pnpm start` here resolves to
-# `next start -H 0.0.0.0 -p ${PORT:-3000}` (this app's package.json), NOT the
-# monorepo's `turbo run start`.
+# The runner image is the pnpm workspace root, so the root `start` script
+# (`turbo run start`) would launch EVERY app on the same PORT. Use the scoped
+# root script instead, which runs only this app's `next start`. (Same pattern
+# as the working Shippo service: `pnpm run start:shippo`.)
 [deploy]
-startCommand = "pnpm start"
+startCommand = "pnpm run start:abandoned-cart"
