@@ -71,6 +71,12 @@ export const appConfigSchema = z.object({
    * carts are kept the same length for conversion stats. Default 30.
    */
   retentionDays: z.number().int().positive().default(30),
+  /**
+   * When set, an internal notification email is sent to this address every
+   * time a tracked abandoned cart converts to an order (ORDER_CREATED for a
+   * cart we'd emailed). Leave blank to disable conversion notifications.
+   */
+  conversionNotifyEmail: z.string().email().optional(),
   programs: z.array(channelProgramSchema).default([]),
 });
 export type AppConfigFields = z.infer<typeof appConfigSchema>;
@@ -86,6 +92,7 @@ export class AppConfig {
   readonly storefrontUrl: string | undefined;
   readonly storeName: string;
   readonly retentionDays: number;
+  readonly conversionNotifyEmail: string | undefined;
   readonly programs: readonly ChannelProgram[];
 
   private constructor(fields: AppConfigFields) {
@@ -93,6 +100,7 @@ export class AppConfig {
     this.storefrontUrl = fields.storefrontUrl;
     this.storeName = fields.storeName;
     this.retentionDays = fields.retentionDays;
+    this.conversionNotifyEmail = fields.conversionNotifyEmail;
     this.programs = fields.programs;
   }
 
@@ -121,6 +129,7 @@ export class AppConfig {
       storefrontUrl: this.storefrontUrl,
       storeName: this.storeName,
       retentionDays: this.retentionDays,
+      conversionNotifyEmail: this.conversionNotifyEmail,
       programs: this.programs.map((p) => ({ ...p, reminders: [...p.reminders] })),
     };
   }

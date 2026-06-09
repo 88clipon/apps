@@ -54,6 +54,7 @@ export const ConfigurationView = () => {
   const [storeName, setStoreName] = useState("88Clipon");
   const [storefrontUrl, setStorefrontUrl] = useState("");
   const [retentionDays, setRetentionDays] = useState("30");
+  const [conversionNotifyEmail, setConversionNotifyEmail] = useState("");
   const [smtp, setSmtp] = useState<SmtpFormState>(emptySmtp());
   const [programs, setPrograms] = useState<ProgramFormState[]>([
     defaultReminder("default-channel"),
@@ -70,6 +71,7 @@ export const ConfigurationView = () => {
     setStoreName(cfg.storeName);
     setStorefrontUrl(cfg.storefrontUrl ?? "");
     setRetentionDays(String(cfg.retentionDays));
+    setConversionNotifyEmail(cfg.conversionNotifyEmail ?? "");
 
     if (cfg.smtp) {
       setSmtp({
@@ -95,6 +97,7 @@ export const ConfigurationView = () => {
         storeName,
         storefrontUrl: storefrontUrl || undefined,
         retentionDays: Number(retentionDays) || 30,
+        conversionNotifyEmail: conversionNotifyEmail || undefined,
         smtp: smtp.user
           ? {
               host: smtp.host,
@@ -169,6 +172,12 @@ export const ConfigurationView = () => {
           type="number"
           value={retentionDays}
           onChange={(e) => setRetentionDays(e.target.value)}
+        />
+        <Input
+          label="Conversion notification email (optional) — notified when a tracked cart converts to an order"
+          value={conversionNotifyEmail}
+          placeholder="admin@88clipon.com"
+          onChange={(e) => setConversionNotifyEmail(e.target.value)}
         />
       </Section>
 

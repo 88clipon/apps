@@ -3,13 +3,14 @@ import { captureException } from "@sentry/nextjs";
 import { createLogger } from "@/lib/logger";
 import { withLoggerContext } from "@/lib/logger-context";
 import { repoImpl } from "@/modules/app-config/repositories/repo-impl";
+import { emailSender } from "@/modules/email/email-sender";
 import { createSaleorApiUrl } from "@/modules/saleor/saleor-api-url";
 import { MarkRecoveredUseCase } from "@/modules/use-cases/mark-recovered";
 
 import { orderCreatedWebhookDefinition } from "./webhook-definition";
 
 const logger = createLogger("AbandonedCartOrderCreated route");
-const useCase = new MarkRecoveredUseCase(repoImpl);
+const useCase = new MarkRecoveredUseCase(repoImpl, emailSender);
 
 const handler = orderCreatedWebhookDefinition.createHandler(async (_req, ctx) => {
   try {
