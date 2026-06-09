@@ -93,6 +93,8 @@ export default {
     "Idempotently",
     "nodemailer",
     "unrecovered",
+    "STARTTLS",
+    "IONOS",
     "ZPLII",
   ],
   language: "en-US",
