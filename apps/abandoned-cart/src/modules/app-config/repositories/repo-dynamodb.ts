@@ -196,6 +196,43 @@ export class AbandonedCartRepoDynamoDB implements AbandonedCartRepo {
     }
   }
 
+  async listCarts(
+    access: BaseAccess,
+  ): Promise<Result<CartRecord[], InstanceType<typeof RepoError.FailureFetching>>> {
+    try {
+      const items = await this.documentClient.send(
+        new QueryCommand({
+          TableName: this.table.getName(),
+          KeyConditionExpression: "#pk = :pk AND begins_with(#sk, :sk_prefix)",
+          ExpressionAttributeNames: { "#pk": "PK", "#sk": "SK" },
+          ExpressionAttributeValues: {
+            ":pk": this.pk(access),
+            ":sk_prefix": CART_SK_PREFIX,
+          },
+        }),
+      );
+
+      const carts: CartRecord[] = [];
+
+      for (const item of items.Items ?? []) {
+        const parsed = cartRecordSchema.safeParse(item.cart);
+
+        if (!parsed.success) continue;
+        const created = CartRecord.create(parsed.data);
+
+        if (created.isOk()) carts.push(created.value);
+      }
+
+      carts.sort((a, b) => (a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1));
+
+      return ok(carts);
+    } catch (cause) {
+      logger.error("Failed to list all carts", { error: cause });
+
+      return err(new RepoError.FailureFetching("Failed to list all carts", { cause }));
+    }
+  }
+
   async findLatestSendByEmail(args: {
     access: BaseAccess;
     email: string;

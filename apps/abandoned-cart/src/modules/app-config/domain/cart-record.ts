@@ -117,6 +117,13 @@ export class CartRecord {
     return !this.recoveredAt && !this.unsubscribedAt && !!this.email;
   }
 
+  /** Most recently sent reminder, or null if none sent yet. */
+  get lastReminder(): SentReminder | null {
+    if (this.remindersSent.length === 0) return null;
+
+    return [...this.remindersSent].sort((a, b) => (a.sentAt > b.sentAt ? -1 : 1))[0];
+  }
+
   toJSON(): CartRecordFields {
     return {
       checkoutId: this.checkoutId,

@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 
 import { createLogger } from "@/lib/logger";
 import { AppConfig } from "@/modules/app-config/domain/app-config";
+import { getCartStatus } from "@/modules/app-config/domain/cart-status";
 import { repoImpl } from "@/modules/app-config/repositories/repo-impl";
 import { emailSender } from "@/modules/email/email-sender";
 import { buildContext, renderTemplate } from "@/modules/email/template-renderer";
@@ -225,5 +226,44 @@ export const configRouter = router({
       }
 
       return result.value;
+    }),
+
+  /**
+   * Lists tracked carts with a derived lifecycle status for the dashboard
+   * status view. Newest activity first; capped to a sane number for the UI.
+   */
+  listCarts: protectedClientProcedure
+    .meta({ requiredClientPermissions: ["MANAGE_APPS"] })
+    .query(async ({ ctx }) => {
+      const { appId } = requireCtx(ctx);
+      const saleorApiUrl = unwrapSaleorApiUrl(ctx.saleorApiUrl);
+      const result = await repoImpl.listCarts({ saleorApiUrl, appId });
+
+      if (result.isErr()) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: result.error.message,
+        });
+      }
+
+      return result.value.slice(0, 200).map((cart) => {
+        const status = getCartStatus(cart);
+
+        return {
+          checkoutId: cart.checkoutId,
+          email: cart.email,
+          customerName:
+            [cart.customerFirstName, cart.customerLastName].filter(Boolean).join(" ") || null,
+          totalAmount: cart.totalAmount,
+          currency: cart.currency,
+          channelSlug: cart.channelSlug,
+          remindersSentCount: cart.remindersSent.length,
+          lastReminderName: cart.lastReminder?.reminderName ?? null,
+          lastUpdatedAt: cart.lastUpdatedAt,
+          recoveredAt: cart.recoveredAt,
+          statusCode: status.code,
+          statusLabel: status.label,
+        };
+      });
     }),
 });

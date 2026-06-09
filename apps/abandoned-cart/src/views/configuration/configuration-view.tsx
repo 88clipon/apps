@@ -1,5 +1,5 @@
 import { Box, Button, Input, Text, Textarea } from "@saleor/macaw-ui";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import { trpcClient } from "@/modules/trpc/trpc-client";
 
@@ -50,6 +50,7 @@ export const ConfigurationView = () => {
   });
   const testEmail = trpcClient.config.sendTestEmail.useMutation();
   const runOnce = trpcClient.config.runOnce.useMutation();
+  const cartsQuery = trpcClient.config.listCarts.useQuery();
 
   const [storeName, setStoreName] = useState("88Clipon");
   const [storefrontUrl, setStorefrontUrl] = useState("");
@@ -240,6 +241,96 @@ export const ConfigurationView = () => {
         </Button>
         {notice && <Text>{notice}</Text>}
       </Box>
+
+      <Section title="Tracked carts">
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Text color="default2" size={2}>
+            Carts captured from checkout webhooks and their current status. If a cart you expect
+            isn&apos;t here, the checkout webhook didn&apos;t reach the app or the channel isn&apos;t
+            targeted by a program.
+          </Text>
+          <Button
+            variant="secondary"
+            onClick={() => cartsQuery.refetch()}
+            disabled={cartsQuery.isFetching}
+          >
+            {cartsQuery.isFetching ? "Refreshing…" : "Refresh"}
+          </Button>
+        </Box>
+        <CartStatusTable carts={cartsQuery.data ?? []} loading={cartsQuery.isLoading} />
+      </Section>
+    </Box>
+  );
+};
+
+type TrackedCart = {
+  checkoutId: string;
+  email: string | null;
+  customerName: string | null;
+  totalAmount: number;
+  currency: string;
+  channelSlug: string;
+  remindersSentCount: number;
+  lastReminderName: string | null;
+  lastUpdatedAt: string;
+  recoveredAt: string | null;
+  statusCode: string;
+  statusLabel: string;
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  CONVERTED: "#15803d",
+  REMINDED: "#1d4ed8",
+  AWAITING: "#92400e",
+  NO_EMAIL: "#b91c1c",
+  UNSUBSCRIBED: "#6b7280",
+};
+
+const CartStatusTable = ({ carts, loading }: { carts: TrackedCart[]; loading: boolean }) => {
+  if (loading) {
+    return <Text color="default2">Loading…</Text>;
+  }
+
+  if (carts.length === 0) {
+    return (
+      <Text color="default2">
+        No tracked carts yet. Create a checkout with an email on a targeted channel, then refresh.
+      </Text>
+    );
+  }
+
+  return (
+    <Box
+      display="grid"
+      __gridTemplateColumns="2fr 1fr 1fr 1.5fr 1fr"
+      gap={2}
+      fontSize={2}
+      alignItems="center"
+    >
+      <Text size={2} fontWeight="bold">Customer</Text>
+      <Text size={2} fontWeight="bold">Value</Text>
+      <Text size={2} fontWeight="bold">Channel</Text>
+      <Text size={2} fontWeight="bold">Status</Text>
+      <Text size={2} fontWeight="bold">Last activity</Text>
+      {carts.map((c) => (
+        <React.Fragment key={c.checkoutId}>
+          <Text size={2} ellipsis>
+            {c.customerName || c.email || "(no email)"}
+          </Text>
+          <Text size={2}>
+            {c.currency === "USD" ? "$" : ""}
+            {c.totalAmount.toFixed(2)}
+            {c.currency === "USD" ? "" : ` ${c.currency}`}
+          </Text>
+          <Text size={2} ellipsis>{c.channelSlug}</Text>
+          <Text size={2} __color={STATUS_COLOR[c.statusCode] ?? undefined} fontWeight="medium">
+            {c.statusLabel}
+          </Text>
+          <Text size={2} color="default2">
+            {new Date(c.lastUpdatedAt).toLocaleString()}
+          </Text>
+        </React.Fragment>
+      ))}
     </Box>
   );
 };

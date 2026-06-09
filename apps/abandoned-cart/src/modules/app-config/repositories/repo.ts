@@ -49,6 +49,13 @@ export interface AbandonedCartRepo {
   listLiveCarts(
     args: BaseAccess,
   ): Promise<Result<CartRecord[], InstanceType<typeof RepoError.FailureFetching>>>;
+  /**
+   * Returns every tracked cart for the tenant (any status). Used by the
+   * dashboard status view.
+   */
+  listCarts(
+    args: BaseAccess,
+  ): Promise<Result<CartRecord[], InstanceType<typeof RepoError.FailureFetching>>>;
   /** Returns the existing live cart for a given email, if any. For throttling. */
   findLatestSendByEmail(args: {
     access: BaseAccess;

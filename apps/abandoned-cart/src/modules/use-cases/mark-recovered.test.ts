@@ -72,7 +72,12 @@ describe("MarkRecoveredUseCase", () => {
   it("marks the cart recovered and sends a conversion notification when configured", async () => {
     // Arrange
     const repo = await setup("ops@88clipon.com");
-    const send = vi.fn(async () => ({ isErr: () => false, value: { messageId: "m1" } }));
+    const send = vi.fn(
+      async (_args: { email: { to: string; subject: string } }) => ({
+        isErr: () => false,
+        value: { messageId: "m1" },
+      }),
+    );
     const useCase = new MarkRecoveredUseCase(repo, { send } as unknown as EmailSender);
 
     // Act
@@ -81,7 +86,7 @@ describe("MarkRecoveredUseCase", () => {
     // Assert
     expect(result._unsafeUnwrap()).toStrictEqual({ recovered: true, notified: true });
     expect(send).toHaveBeenCalledOnce();
-    const arg = send.mock.calls[0][0] as { email: { to: string; subject: string } };
+    const arg = send.mock.calls[0][0];
 
     expect(arg.email.to).toBe("ops@88clipon.com");
     expect(arg.email.subject).toBe(

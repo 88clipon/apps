@@ -49,14 +49,21 @@ export class TrackCheckoutUseCase {
   }): Promise<Result<{ tracked: boolean; reason?: string }, Error>> {
     const checkout = args.payload.checkout;
 
+    logger.info("Checkout webhook received", {
+      hasCheckout: !!checkout,
+      token: checkout?.token ?? null,
+      channelSlug: checkout?.channel?.slug ?? null,
+      hasEmail: !!(checkout?.email ?? checkout?.user?.email),
+    });
+
     if (!checkout?.token) {
-      logger.debug("Skipping — no checkout token on payload");
+      logger.info("Skipping — no checkout token on payload");
 
       return ok({ tracked: false, reason: "missing-checkout-token" });
     }
 
     if (!checkout.channel?.slug) {
-      logger.debug("Skipping — no channel slug on payload", { token: checkout.token });
+      logger.info("Skipping — no channel slug on payload", { token: checkout.token });
 
       return ok({ tracked: false, reason: "missing-channel-slug" });
     }
@@ -67,14 +74,15 @@ export class TrackCheckoutUseCase {
     const config = configResult.value;
 
     if (!config) {
-      logger.debug("Skipping — app not configured yet");
+      logger.info("Skipping — app not configured yet");
 
       return ok({ tracked: false, reason: "app-not-configured" });
     }
 
     if (!config.programFor(checkout.channel.slug)) {
-      logger.debug("Skipping — channel has no enabled program", {
+      logger.info("Skipping — channel has no enabled program", {
         channelSlug: checkout.channel.slug,
+        configuredChannels: config.programs.map((p) => p.channelSlug),
       });
 
       return ok({ tracked: false, reason: "channel-not-targeted" });

@@ -59,6 +59,18 @@ export class AbandonedCartRepoMemory implements AbandonedCartRepo {
     return ok(Array.from(tenant.values()).filter((c) => c.isLive));
   }
 
+  async listCarts(
+    access: BaseAccess,
+  ): Promise<Result<CartRecord[], InstanceType<typeof RepoError.FailureFetching>>> {
+    const tenant = this.carts.get(keyFor(access));
+
+    if (!tenant) return ok([]);
+
+    return ok(
+      Array.from(tenant.values()).sort((a, b) => (a.lastUpdatedAt > b.lastUpdatedAt ? -1 : 1)),
+    );
+  }
+
   async findLatestSendByEmail(args: {
     access: BaseAccess;
     email: string;
