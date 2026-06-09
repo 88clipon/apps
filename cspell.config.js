@@ -81,7 +81,6 @@ export default {
     "claude",
     "SEPA",
     "mailpit",
-    "shippingeasy",
     "HMAC",
     "Shippo",
     "shippo",
