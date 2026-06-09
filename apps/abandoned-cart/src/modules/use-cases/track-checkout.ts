@@ -98,8 +98,18 @@ export class TrackCheckoutUseCase {
 
     const email = checkout.email ?? checkout.user?.email ?? null;
     const now = new Date().toISOString();
-    const lastUpdatedAt = checkout.lastChange ?? now;
-    const createdAt = existing?.createdAt ?? checkout.created ?? now;
+    /*
+     * Normalize Saleor's timestamps (microseconds + numeric offset) to clean
+     * UTC ISO so storage and the scheduler's date math stay consistent.
+     */
+    const normalize = (raw: string | null | undefined): string | null => {
+      if (!raw) return null;
+      const t = new Date(raw).getTime();
+
+      return Number.isNaN(t) ? null : new Date(t).toISOString();
+    };
+    const lastUpdatedAt = normalize(checkout.lastChange) ?? now;
+    const createdAt = existing?.createdAt ?? normalize(checkout.created) ?? now;
     const retentionDays = config.retentionDays || DEFAULT_RETENTION_DAYS;
     const ttl = Math.floor(new Date(lastUpdatedAt).getTime() / 1000) + retentionDays * 86400;
 

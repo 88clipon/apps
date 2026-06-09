@@ -15,9 +15,18 @@ export type CartLine = z.infer<typeof cartLineSchema>;
  * Per-reminder send record. `sentAt` is null until the scheduler successfully
  * dispatches the email; that's how we avoid double-sending.
  */
+/*
+ * Saleor emits timestamps like `2026-06-09T05:17:02.816451+00:00` — microsecond
+ * precision and a numeric UTC offset, both of which `z.string().datetime()`
+ * rejects by default. `{ offset: true }` accepts the offset; the fractional
+ * part is already allowed. Used for every timestamp that may originate from a
+ * Saleor payload.
+ */
+const isoDateTime = () => z.string().datetime({ offset: true });
+
 export const sentReminderSchema = z.object({
   reminderName: z.string().min(1),
-  sentAt: z.string().datetime(),
+  sentAt: isoDateTime(),
 });
 export type SentReminder = z.infer<typeof sentReminderSchema>;
 
@@ -39,15 +48,15 @@ export const cartRecordSchema = z.object({
   currency: z.string().length(3),
   lines: z.array(cartLineSchema),
   /** ISO timestamp of last activity on the checkout. Reset on UPDATED. */
-  lastUpdatedAt: z.string().datetime(),
+  lastUpdatedAt: isoDateTime(),
   /** ISO timestamp the checkout first showed up via CREATED. */
-  createdAt: z.string().datetime(),
+  createdAt: isoDateTime(),
   /** Reminders already dispatched. Driven by the scheduler. */
   remindersSent: z.array(sentReminderSchema).default([]),
   /** Set when the customer comes back and places an order. */
-  recoveredAt: z.string().datetime().nullable().default(null),
+  recoveredAt: isoDateTime().nullable().default(null),
   /** Set when the customer unsubscribes via the email's footer link. */
-  unsubscribedAt: z.string().datetime().nullable().default(null),
+  unsubscribedAt: isoDateTime().nullable().default(null),
   /**
    * DynamoDB TTL — Unix epoch seconds. Set by the repo to
    * `lastUpdatedAt + retentionDays`. DynamoDB auto-deletes rows when crossed.
