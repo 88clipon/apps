@@ -95,6 +95,7 @@ export default {
     "unrecovered",
     "STARTTLS",
     "IONOS",
+    "smtplib",
     "ZPLII",
   ],
   language: "en-US",

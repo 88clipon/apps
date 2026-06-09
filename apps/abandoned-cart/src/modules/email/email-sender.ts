@@ -41,6 +41,14 @@ export class EmailSender {
       port: config.port,
       secure,
       requireTLS: !secure,
+      /*
+       * Force AUTH LOGIN. IONOS (and several shared hosts) reject AUTH PLAIN —
+       * which nodemailer otherwise prefers — with "535 Authentication
+       * credentials invalid" even when the credentials are correct. Python's
+       * smtplib (used by Saleor's email plugins) negotiates LOGIN, which is why
+       * the same credentials work there but not here.
+       */
+      authMethod: "LOGIN",
       auth: { user: config.user, pass: config.password },
     });
 
