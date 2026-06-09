@@ -30,9 +30,16 @@ export function buildContext(args: {
   storefrontUrl: string | undefined;
   storeName: string;
 }): TemplateContext {
-  const recoveryUrl = args.storefrontUrl
-    ? `${args.storefrontUrl.replace(/\/+$/, "")}/${args.cart.channelSlug}/checkout?token=${encodeURIComponent(args.cart.checkoutId)}`
-    : "";
+  /*
+   * The storefront checkout page lives at `/checkout?checkout=<id>` (top-level,
+   * no channel segment) and looks the checkout up by its Saleor global ID — not
+   * the token. Build the link from saleorCheckoutId; fall back to empty if we
+   * never captured it (older rows) so the email doesn't render a broken link.
+   */
+  const recoveryUrl =
+    args.storefrontUrl && args.cart.saleorCheckoutId
+      ? `${args.storefrontUrl.replace(/\/+$/, "")}/checkout?checkout=${encodeURIComponent(args.cart.saleorCheckoutId)}`
+      : "";
 
   return {
     customer: {

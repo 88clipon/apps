@@ -6,6 +6,7 @@ import { buildContext, renderTemplate } from "./template-renderer";
 
 const sampleCart = CartRecord.create({
   checkoutId: "abc",
+  saleorCheckoutId: "Q2hlY2tvdXQ6YWJj",
   saleorApiUrl: "https://example.test/graphql/",
   appId: "app-1",
   channelSlug: "us",
@@ -44,11 +45,12 @@ describe("template renderer", () => {
     expect(html).toContain("Hi Alex");
     expect(html).toContain("2 items, total USD 49.88");
     /*
-     * Handlebars HTML-escapes `=` inside attribute values to `&#x3D;`. Browsers
-     * decode that correctly, so the rendered URL still works for customers.
+     * Recovery URL points at the top-level /checkout page with the Saleor
+     * checkout global ID. Handlebars HTML-escapes `=` to `&#x3D;`; browsers
+     * decode it, so the link still works for customers.
      */
-    expect(html).toContain("https://88clipon.com/us/checkout?token");
-    expect(html).toContain("abc");
+    expect(html).toContain("https://88clipon.com/checkout?checkout");
+    expect(html).toContain("Q2hlY2tvdXQ6YWJj");
     expect(html).toContain("— 88Clipon");
   });
 

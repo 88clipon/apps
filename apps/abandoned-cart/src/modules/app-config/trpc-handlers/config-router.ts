@@ -127,6 +127,7 @@ export const configRouter = router({
       const sampleContext = buildContext({
         cart: {
           checkoutId: "preview-abc123",
+          saleorCheckoutId: "Q2hlY2tvdXQ6cHJldmlldy1hYmMxMjM=",
           saleorApiUrl: "preview" as never,
           appId: "preview",
           channelSlug: input.programs[0]?.channelSlug ?? "default-channel",

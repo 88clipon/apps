@@ -36,8 +36,15 @@ export type SentReminder = z.infer<typeof sentReminderSchema>;
  * an `ORDER_CREATED` webhook arrives for the same checkout token.
  */
 export const cartRecordSchema = z.object({
-  /** Saleor checkout token — unique per cart. */
+  /** Saleor checkout token — unique per cart, our row key. */
   checkoutId: z.string().min(1),
+  /**
+   * Saleor checkout global ID (base64, e.g. `Q2hlY2tvdXQ6…`). This is what the
+   * storefront's `/checkout?checkout=<id>` recovery link needs — distinct from
+   * the token above. Optional for backward-compat with rows written before
+   * this field existed.
+   */
+  saleorCheckoutId: z.string().optional(),
   saleorApiUrl: z.string().min(1),
   appId: z.string().min(1),
   channelSlug: z.string().min(1),
@@ -72,6 +79,7 @@ export const CartRecordValidationError = BaseError.subclass("CartRecordValidatio
 
 export class CartRecord {
   readonly checkoutId: string;
+  readonly saleorCheckoutId: string | undefined;
   readonly saleorApiUrl: string;
   readonly appId: string;
   readonly channelSlug: string;
@@ -90,6 +98,7 @@ export class CartRecord {
 
   private constructor(fields: CartRecordFields) {
     this.checkoutId = fields.checkoutId;
+    this.saleorCheckoutId = fields.saleorCheckoutId;
     this.saleorApiUrl = fields.saleorApiUrl;
     this.appId = fields.appId;
     this.channelSlug = fields.channelSlug;
@@ -136,6 +145,7 @@ export class CartRecord {
   toJSON(): CartRecordFields {
     return {
       checkoutId: this.checkoutId,
+      saleorCheckoutId: this.saleorCheckoutId,
       saleorApiUrl: this.saleorApiUrl,
       appId: this.appId,
       channelSlug: this.channelSlug,

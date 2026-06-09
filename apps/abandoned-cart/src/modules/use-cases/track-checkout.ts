@@ -11,6 +11,7 @@ const DEFAULT_RETENTION_DAYS = 30;
 
 export type CheckoutWebhookPayload = {
   checkout?: {
+    id?: string | null;
     token?: string | null;
     email?: string | null;
     created?: string | null;
@@ -115,6 +116,7 @@ export class TrackCheckoutUseCase {
 
     const input: CartRecordInput = {
       checkoutId: checkout.token,
+      saleorCheckoutId: checkout.id ?? existing?.saleorCheckoutId ?? undefined,
       saleorApiUrl: args.access.saleorApiUrl,
       appId: args.access.appId,
       channelSlug: checkout.channel.slug,
