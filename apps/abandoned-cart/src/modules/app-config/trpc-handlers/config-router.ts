@@ -162,8 +162,30 @@ export const configRouter = router({
   sendTestEmail: protectedClientProcedure
     .meta({ requiredClientPermissions: ["MANAGE_APPS"] })
     .input(sendTestEmailInputSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const { appId } = requireCtx(ctx);
+      const saleorApiUrl = unwrapSaleorApiUrl(ctx.saleorApiUrl);
       const { to, ...smtp } = input;
+
+      /*
+       * The config UI hydrates the password field with the masked value
+       * returned by `get`. If the user didn't retype it, resolve the mask back
+       * to the stored password (same as `save`) so the test authenticates with
+       * the real credential instead of the literal "********".
+       */
+      if (smtp.password === "********") {
+        const existing = await repoImpl.getConfig({ saleorApiUrl, appId });
+
+        if (existing.isOk() && existing.value?.smtp) {
+          smtp.password = existing.value.smtp.password;
+        } else {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "No saved password to test with — type the SMTP password, then try again.",
+          });
+        }
+      }
+
       const result = await emailSender.send({
         config: smtp,
         email: {
