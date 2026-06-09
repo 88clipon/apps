@@ -41,10 +41,14 @@ const trackedCart = () =>
     ttl: 9999999999,
   })._unsafeUnwrap();
 
+/*
+ * Saleor's Order.checkoutId is the base64 global ID `Checkout:<token>`, not the
+ * raw token — the use case must decode it back to the token ("ck-1") to match.
+ */
 const orderPayload = {
   order: {
     number: "1042",
-    checkoutId: "ck-1",
+    checkoutId: Buffer.from("Checkout:ck-1").toString("base64"),
     userEmail: "buyer@example.com",
     total: { gross: { amount: 70.76, currency: "USD" } },
   },
