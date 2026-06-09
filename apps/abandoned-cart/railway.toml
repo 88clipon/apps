@@ -1,0 +1,8 @@
+# Railway: Settings → Config-as-code → path `apps/abandoned-cart/railway.toml`.
+#
+# The runner image is the pnpm workspace root, so the root `start` script
+# (`turbo run start`) would launch EVERY app on the same PORT. Use the scoped
+# root script instead, which runs only this app's `next start`. (Same pattern
+# as the working Shippo service: `pnpm run start:shippo`.)
+[deploy]
+startCommand = "pnpm run start:abandoned-cart"

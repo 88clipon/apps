@@ -1,0 +1,49 @@
+fragment AbandonedCheckout on Checkout {
+  id
+  token
+  email
+  created
+  lastChange
+  channel {
+    id
+    slug
+  }
+  user {
+    firstName
+    lastName
+    email
+  }
+  totalPrice {
+    gross {
+      amount
+      currency
+    }
+  }
+  lines {
+    quantity
+    variant {
+      name
+      product {
+        name
+      }
+      pricing {
+        price {
+          gross {
+            amount
+            currency
+          }
+        }
+      }
+    }
+  }
+}
+
+subscription CheckoutCreated {
+  event {
+    ... on CheckoutCreated {
+      checkout {
+        ...AbandonedCheckout
+      }
+    }
+  }
+}
