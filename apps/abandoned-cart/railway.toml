@@ -1,12 +1,10 @@
-# Use this file from Railway: Settings → Config-as-code → set path to
-# `apps/abandoned-cart/railway.toml` (repo root must be the pnpm workspace root
-# that contains `pnpm-workspace.yaml`, not this folder alone).
+# Railway: Settings → Config-as-code → path `apps/abandoned-cart/railway.toml`.
 #
-# Do not use the repo default `pnpm start` here: it runs `turbo run start` and
-# launches every Next.js app in the monorepo on the same PORT.
-
-# `pnpm --filter` resolves the workspace from anywhere inside it, so this works
-# whether Railway runs the command from the repo root or from the app folder.
-# (The app's own `start` script is `next start -H 0.0.0.0 -p ${PORT:-3000}`.)
+# With this config-as-code path, Railpack roots the *runner* image at this app
+# folder — `/app` in the container is the app itself (no workspace root, no root
+# `package.json`). So the start command must be the app's OWN start script, run
+# from the app dir. `pnpm start` here resolves to
+# `next start -H 0.0.0.0 -p ${PORT:-3000}` (this app's package.json), NOT the
+# monorepo's `turbo run start`.
 [deploy]
-startCommand = "pnpm --filter saleor-app-abandoned-cart start"
+startCommand = "pnpm start"
